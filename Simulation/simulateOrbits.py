@@ -27,6 +27,7 @@ R_0 = 149597870700
 # time t' = t/T_0 -> 1 time unit ~= 40 minutes (induced by G'=1))
 T_0 = np.sqrt((R_0**3)/(G_orig * M_0))
 
+# technically G'
 G = 1
 #MBH mass (in solar masses)
 m1 = 1

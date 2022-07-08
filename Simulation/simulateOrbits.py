@@ -23,24 +23,26 @@ M_sol = 1.98841 * 10**30
 # mass m' = m/M_0 -> MBH = 1
 M_0 = 4.297 * 10**6 * M_sol
 # distance r' = r/R_0 -> 1 AU = 1)
-R_0 = 149597870700
+D_0 = 149597870700
 # time t' = t/T_0 -> 1 time unit ~= 40 minutes (induced by G'=1))
-T_0 = np.sqrt((R_0**3)/(G_orig * M_0))
+T_0 = np.sqrt((D_0**3)/(G_orig * M_0))
 
 # technically G'
 G = 1
-#MBH mass (in solar masses)
+#MBH mass
 m1 = 1
-# m1 = 8.26*10**36
+#S2 mass
 m2 = 0
 #Speed of light (in m/s, then converted) ~= 4.85 AU / 40 minutes
-c = 299792458 * T_0 / R_0
+c = 299792458 * T_0 / D_0
 #Natural log number
 en = 2.718281828459
 #Constant that dictates steepness of sigmoid
 k = 10000
 #Amount of dark matter shells
 n = 5
+#Using 1PN correction or not:
+PNCORRECTION = True
 
 
 
@@ -62,9 +64,12 @@ nu = m1 * m2 / (M**2)
 """
 Equations (21)-(24):
 """
-#(21), (slight alternate form than in paper so we can reuse ecf1)
+#(21),
+# R1PN = ((G**2)*(M**2)/((c**2)*(p**3))) * ((1 + (e*hy.cos(f)))**2) * (3*(e**2 + 1)
+#         + 5 * nu * (1 - 0.7*e**2) + 2*(e-4*nu)*hy.cos(f) - 4*e**2 * (1 - nu/8) * hy.cos(f)**2 )
+#  Using slight alternate form than in paper so we can reuse ecf1:
 R1PN = GMCP * ecf1**2 * ((3 * e**2) + 1. + 2 * ecf1  - (4 * ecf**2) \
-     + 5 * nu * (1 - (7/19) * e**2) - 8 * nu * hy.cos(f)  + (1/2) * nu * ecf**2)
+      + 5 * nu * (1 - (7/10) * e**2) - 8 * nu * hy.cos(f)  + (1/2) * nu * ecf**2)
 
 # Mascon model (mi, ri), sigmoid approximation of step function
 # heyoka parameter encoding: [m1,m2,...mn,r1,r2,...rn]
@@ -76,10 +81,16 @@ listOfRis = [-G * hy.par[i] / (r**2) * listOfSigs[i] for i in range(n)]
 RDM = hy.sum(listOfRis)
 
 #(24)
-R = R1PN + RDM
+if PNCORRECTION:
+    R = R1PN + RDM
+else:
+    R= RDM
 
 #(22)
-S = GMCP * 2 * (2 - nu) * ecf1**3 * e * hy.sin(f)
+if PNCORRECTION:
+    S = GMCP * 2 * (2 - nu) * ecf1**3 * e * hy.sin(f)
+else:
+    S = 0
 
 W = 0
 
@@ -89,7 +100,7 @@ Osculating equations
 #(15)
 dpdt = pGM * p * (2/ecf1) * S
 #(16)
-dedt = pGM * (R * hy.sin(f) + S * (2 * hy.cos(f) + e*(1 + hy.cos(f)**2))/ecf1)
+dedt = pGM * (R * hy.sin(f) + S * (2 * hy.cos(f) + e*(1 + (hy.cos(f)**2)))/ecf1)
 #(17)
 didt = pGM * W * hy.cos(w+f)/ecf1
 #(18)
@@ -97,7 +108,7 @@ domdt = pGM * W * hy.sin(w+f)/(ecf1 * hy.sin(i))
 #(19)
 #cot = 1/tan
 dwdt = pGM * (1/e) * (-R * hy.cos(f) + S * (1. + (1/ecf1) ) * hy.sin(f)  \
-                      - W * e * (1/hy.tan(i)) * hy.sin(w+f)/ecf1)
+                      - W * e * (1/hy.tan(i)) * (hy.sin(w+f)/ecf1))
 #(20)
 dfdt = (1/(pGM*p)) * ecf1**2 + \
         pGM * (1/e) * (R * hy.cos(f) -  S * (1. + (1/ecf1) ) * hy.sin(f))
@@ -116,16 +127,15 @@ ta = hy.taylor_adaptive(
 )
 
 # t period should be 208975, but is 218299
-# t_grid = np.linspace(0, 208975, 1000)
-t_grid = np.linspace(0, 218299, 1000)
-#propagate until (for max time) + time grid for plotting
+t_grid = np.linspace(0, 208975, 1000)
+# t_grid = np.linspace(0, 218299, 1000)
 
 
 """
 Set dark matter distribution (masses and radii of shells), in units of MBH masses!
 """
 # mis = [10**(-5)] + (n-1)*[0]
-mis = n*[10**(-5)]
+# mis = n*[10**(-5)]
 mis = n*[0]
 ta.pars[:n] = mis
 
@@ -151,21 +161,22 @@ lf  = np.asarray(out[4][:, 5])
 lr = lp / (1 + le * np.cos(lf))
 
 # Plot some orbital elements
-plt.rcParams["figure.figsize"] = (12,6)
-plt.subplot(1,2,1)
-plt.plot(lp, le)
-plt.xlabel("p")
-plt.ylabel("e")
-plt.subplot(1,2,2)
-plt.plot(lf, lp)
-plt.xlabel("f")
-plt.ylabel("p")
+# plt.rcParams["figure.figsize"] = (12,6)
+# plt.subplot(1,2,1)
+# plt.plot(lp, le)
+# plt.xlabel("p")
+# plt.ylabel("e")
+# plt.subplot(1,2,2)
+# plt.plot(lf, lp)
+# plt.xlabel("f")
+# plt.ylabel("p")
 
-plt.figure()
-plt.plot(t_grid,lf)
-# plt.plot(t_grid,len(t_grid)*[np.pi*2])
-plt.xlabel("t")
-plt.ylabel("f")
+# Plot f in function of time
+# plt.figure()
+# plt.plot(t_grid,lf)
+# # plt.plot(t_grid,len(t_grid)*[np.pi*2])
+# plt.xlabel("t")
+# plt.ylabel("f")
 
 
 

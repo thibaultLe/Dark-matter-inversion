@@ -7,6 +7,11 @@ Created on Tue Jul  5 17:01:05 2022
 import heyoka as hy
 import numpy as np
 from matplotlib.pylab import plt
+import time
+
+def SI_to_arcseconds(dist):
+    R = 2.5540153e+20
+    return 2 * np.arctan(dist/(2*R))
 
 # Create the symbolic variables.
 p, e, i, om, w, f = hy.make_vars("p", "e", "i", "om", "w", "f")
@@ -21,7 +26,7 @@ M_sol = 1.98841 * 10**30
 
 #Using unit conversion to avoid huge numbers 
 # mass m' = m/M_0 -> MBH = 1
-M_0 = 4.297 * 10**6 * M_sol
+M_0 = 4.2970174 * 10**6 * M_sol
 # distance r' = r/R_0 -> 1 AU = 1)
 D_0 = 149597870700
 # time t' = t/T_0 -> 1 time unit ~= 40 minutes (induced by G'=1))
@@ -42,7 +47,7 @@ k = 10000
 #Amount of dark matter shells
 n = 5
 #Using 1PN correction or not:
-PNCORRECTION = True
+PNCORRECTION = False
 
 
 
@@ -80,17 +85,14 @@ listOfRis = [-G * hy.par[i] / (r**2) * listOfSigs[i] for i in range(n)]
 #(23)
 RDM = hy.sum(listOfRis)
 
-#(24)
+#(24),(22)
 if PNCORRECTION:
     R = R1PN + RDM
-else:
-    R= RDM
-
-#(22)
-if PNCORRECTION:
     S = GMCP * 2 * (2 - nu) * ecf1**3 * e * hy.sin(f)
 else:
+    R= RDM
     S = 0
+
 
 W = 0
 
@@ -117,35 +119,69 @@ dfdt = (1/(pGM*p)) * ecf1**2 + \
 """
 Instantiate the Taylor integrator
 """
+#For tests with gernot:
+#alpha in arcseconds
+alpha_mpe = 0.1249527719 
+#R in parsec
+R_mpe = 8277.09055007
+e_mpe = 0.884429099282  
+a_mpe = 2 * R_mpe * np.tan(alpha_mpe * np.pi / (2*648000)) * 3.08567758149e+16 / D_0
+p_mpe = a_mpe * (1-e_mpe**2) 
+T_period = np.sqrt(a_mpe**3)*2*np.pi
+T_0mpe =  2010.3561125977762 * 365.25*24* 60**2 /T_0
+
+
+start_time = time.time()
 ta = hy.taylor_adaptive(
     # The ODEs.
     [(p, dpdt), (e, dedt), (i, didt), (om, domdt), (w, dwdt), (f, dfdt)],
     # The initial conditions (from https://doi.org/10.1051/0004-6361/202142465 )
     # a = tan(0.12495°/(2*3600)) * 2 * 8277
     # -> p = a * (1-e**2) = 0.00109214 [pc] = 225.270 AU
-    [225.270788736, 0.88441, 134.70, 228.19, 66.25, 0]
+    # [225.270788736, 0.88441, -134.70 / 180 * np.pi, 228.19 / 180 * np.pi, 66.25 / 180 * np.pi, -np.pi]
+    [p_mpe, 0.88441, 134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, 66.2689390128 / 180 * np.pi, -np.pi]
+
 )
+print("--- %s seconds --- to build the Taylor integrator" % (time.time() - start_time))
 
 # t period should be 208975, but is 218299
-t_grid = np.linspace(0, 208975, 1000)
-# t_grid = np.linspace(0, 218299, 1000)
+# t_grid = np.linspace(0, 208974.69105500783, 1000)
+# t_grid = np.linspace(0,218299, 1000)
+t_grid = np.linspace(T_0mpe, T_0mpe+T_period, 1000)
 
 
 """
 Set dark matter distribution (masses and radii of shells), in units of MBH masses!
 """
 # mis = [10**(-5)] + (n-1)*[0]
-# mis = n*[10**(-5)]
+# mis = n*[10**(-3)]
 mis = n*[0]
 ta.pars[:n] = mis
 
 ris = np.linspace(0,100,n)
 ta.pars[n:] = ris
 
+#Plot dark matter distribution
+#Bahcall-Wolf cusp model:
+# fig = plt.figure()
+# rDM = np.linspace(10**(-5),10**(-2),1000)
+# rho0 = 2.24*10**(-11) * (D_0**3) / M_0
+# r0 = 2474.01
+# rho = rho0 * (rDM / r0)**(-7/4)
+# plt.plot(rDM,rho)
 
+# plt.scatter(ris, mis)
+# plt.xlim(0)
+# plt.ylim(0)
+# plt.xlabel('Distance from MBH (in AU)')
+# plt.ylabel('Mass (in MBH masses)')
+# plt.legend()
+# plt.show()
+
+
+start_time = time.time()
 out = ta.propagate_grid(t_grid)
-
-# print(out[4][:, 0])
+print("--- %s seconds --- to propagate" % (time.time() - start_time))
 
 
 
@@ -157,6 +193,7 @@ li  = np.asarray(out[4][:, 2])
 lom = np.asarray(out[4][:, 3])
 lw  = np.asarray(out[4][:, 4])
 lf  = np.asarray(out[4][:, 5])
+
 
 lr = lp / (1 + le * np.cos(lf))
 
@@ -175,6 +212,7 @@ lr = lp / (1 + le * np.cos(lf))
 # plt.figure()
 # plt.plot(t_grid,lf)
 # # plt.plot(t_grid,len(t_grid)*[np.pi*2])
+# # plt.plot(t_grid,len(t_grid)*[np.pi*4])
 # plt.xlabel("t")
 # plt.ylabel("f")
 
@@ -185,11 +223,16 @@ rx = lr * (np.cos(lom) * np.cos(lw + lf) - np.cos(li)*np.sin(lom)*np.sin(lw+lf))
 ry = lr * (np.sin(lom) * np.cos(lw + lf) + np.cos(li)*np.cos(lom)*np.sin(lw+lf))
 rz = lr * np.sin(li) * np.sin(lw + lf)
 
+print('Y_f - Y_i =',SI_to_arcseconds((ry[-1]-ry[0])*D_0),'µas')
+print('X_f - X_i =',SI_to_arcseconds((rx[-1]-rx[0])*D_0),'µas')
+
 vx = -np.sqrt(GM)/lp * (np.cos(lom) * (np.sin(lw+lf) + le*np.sin(lw)) + \
          np.cos(li) * np.sin(lom) * (np.cos(lw+lf) + le*np.cos(lw)))
 vy = -np.sqrt(GM)/lp * (np.sin(lom) * (np.sin(lw+lf) + le*np.sin(lw)) - \
          np.cos(li) * np.cos(lom) * (np.cos(lw+lf) + le*np.cos(lw)))
 vz = np.sqrt(GM)/lp * np.sin(li) * (np.cos(lw+lf) + le * np.cos(lw))
+
+print('VZ_i - VZ_f =',(-vz[-1]+vz[0])/1000 * D_0 / T_0, 'km/s')
 
 
 
@@ -240,15 +283,6 @@ plt.show()
 # ax.legend()
 # plt.show()
 
-#Plot dark matter distribution:
-# fig = plt.figure()
-# plt.scatter(ris, mis)
-# plt.xlim(0)
-# plt.ylim(0)
-# plt.xlabel('Distance from 0')
-# plt.ylabel('Mass')
-# plt.legend()
-# plt.show()
 
 
 

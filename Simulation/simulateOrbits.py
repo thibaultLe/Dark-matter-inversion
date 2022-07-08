@@ -115,20 +115,21 @@ ta = hy.taylor_adaptive(
     [225.270788736, 0.88441, 134.70, 228.19, 66.25, 0]
 )
 
-#TODO: pick a good time limit + step size
-t_grid = np.linspace(0, 208975, 1000)
+# t period should be 208975, but is 218299
+# t_grid = np.linspace(0, 208975, 1000)
+t_grid = np.linspace(0, 218299, 1000)
 #propagate until (for max time) + time grid for plotting
 
 
 """
-Set dark matter distribution (masses and radii of shells)
+Set dark matter distribution (masses and radii of shells), in units of MBH masses!
 """
-# mis = [10**6] + (n-1)*[0]
-# mis = n*[10**2]
+# mis = [10**(-5)] + (n-1)*[0]
+mis = n*[10**(-5)]
 mis = n*[0]
 ta.pars[:n] = mis
 
-ris = np.linspace(0,0.1,n)
+ris = np.linspace(0,100,n)
 ta.pars[n:] = ris
 
 
@@ -136,16 +137,7 @@ out = ta.propagate_grid(t_grid)
 
 # print(out[4][:, 0])
 
-# Plot some orbital elements
-plt.rcParams["figure.figsize"] = (12,6)
-plt.subplot(1,2,1)
-plt.plot(out[4][:, 0], out[4][:, 1])
-plt.xlabel("p")
-plt.ylabel("e")
-plt.subplot(1,2,2)
-plt.plot(out[4][:, 5], out[4][:, 0])
-plt.xlabel("p")
-plt.ylabel("f");
+
 
 
 #Convert to numpy arrays for plotting in 3D with x,y,z
@@ -157,6 +149,23 @@ lw  = np.asarray(out[4][:, 4])
 lf  = np.asarray(out[4][:, 5])
 
 lr = lp / (1 + le * np.cos(lf))
+
+# Plot some orbital elements
+plt.rcParams["figure.figsize"] = (12,6)
+plt.subplot(1,2,1)
+plt.plot(lp, le)
+plt.xlabel("p")
+plt.ylabel("e")
+plt.subplot(1,2,2)
+plt.plot(lf, lp)
+plt.xlabel("f")
+plt.ylabel("p")
+
+plt.figure()
+plt.plot(t_grid,lf)
+# plt.plot(t_grid,len(t_grid)*[np.pi*2])
+plt.xlabel("t")
+plt.ylabel("f")
 
 
 

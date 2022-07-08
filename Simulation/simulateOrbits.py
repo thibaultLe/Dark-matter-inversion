@@ -111,12 +111,12 @@ ta = hy.taylor_adaptive(
     [(p, dpdt), (e, dedt), (i, didt), (om, domdt), (w, dwdt), (f, dfdt)],
     # The initial conditions (from https://doi.org/10.1051/0004-6361/202142465 )
     # a = tan(0.12495°/(2*3600)) * 2 * 8277
-    # -> p = a * (1-e**2) = 0.00109214 [AU]
-    [0.0010921436033369, 0.88441, 134.70, 228.19, 66.25, 0]
+    # -> p = a * (1-e**2) = 0.00109214 [pc] = 225.270 AU
+    [225.270788736, 0.88441, 134.70, 228.19, 66.25, 0]
 )
 
 #TODO: pick a good time limit + step size
-t_grid = np.linspace(0, 0.00005, 1000)
+t_grid = np.linspace(0, 208975, 1000)
 #propagate until (for max time) + time grid for plotting
 
 

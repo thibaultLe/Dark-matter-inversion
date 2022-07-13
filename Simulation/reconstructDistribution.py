@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jul  5 17:01:05 2022
+Created on Wed Jul 13 21:28:46 2022
 
 @author: Thibault
 """
+
 import heyoka as hy
 import numpy as np
 from matplotlib.pylab import plt
@@ -12,15 +13,15 @@ import pickle
 
 
 """
-Simulates orbits of S2 around MBH
+Reconstructs dark matter distribution starting from an initial guess
 
 @param: PNCORRECTION: True if using 1PN correction
-@param: mis: masses of dark matter shells in MBH masses
+@param: mis: initial guesses of masses of dark matter shells in MBH masses
 @param: ris: distances of dark matter shells in AU
 
-@return: [rx,ry,rz],[vx,vy,vz] in metric units
+@return: mis distribution
 """
-def simulateOrbits(PNCORRECTION,mis,ris):
+def reconstructDistribution(PNCORRECTION,mis,ris):
     
     #Can use cached version of system or not
     SAME_PARAMS = False
@@ -147,21 +148,73 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     #(20)
     dfdt = (1/(pGM*p)) * ecf1**2 + \
             pGM * (1/e) * (R * hy.cos(f) -  S * (1. + (1/ecf1) ) * hy.sin(f))
+            
+    """
+    Variational equations
+    """
+    x = np.array([p,e,i,om,w,f])
+    func = [dpdt,dedt,didt,domdt,dwdt,dfdt]
+    
+    #Phi:
+    symbols_phi = []
+    for i in range(6):
+        for j in range(6):
+            symbols_phi.append("phi_"+str(i)+str(j))  
+    phi = np.array(hy.make_vars(*symbols_phi)).reshape((6,6))
+    
+    dfdx = []
+    for i in range(6):
+        for j in range(6):
+            dfdx.append(hy.diff(func[i],x[j]))
+    dfdx = np.array(dfdx).reshape((6,6))
+    
+    dphidt = dfdx@phi
+    
+    #Psi:
+    symbols_psi = []
+    for i in range(6):
+        for j in range(6):
+            symbols_psi.append("psi_"+str(i)+str(j))  
+    psi = np.array(hy.make_vars(*symbols_psi)).reshape((6,6))
+    
+    #ris is a parameter in heyoka, but should be fixed value. Impact on variational eqs?
+    dfdx = []
+    for i in range(6):
+        for j in range(6):
+            dfdx.append(hy.diff(func[i],hy.par[j]))
+    dfdx = np.array(dfdx).reshape((6,6))
+    
+    # The (variational) equations of motion
+    dpsidt = dfdx@psi
+    
+    
+    
+    dyn = []
+    for state, rhs in zip(x,func):
+        dyn.append((state, rhs))
+    for state, rhs in zip(phi.reshape((36,)),dphidt.reshape((36,))):
+        dyn.append((state, rhs))
+    for state, rhs in zip(psi.reshape((36,)),dpsidt.reshape((36,))):
+        dyn.append((state, rhs))
+    # These are the initial conditions on the variational equations (the identity matrix)
+    ic_var_phi = np.eye(6).reshape((36,)).tolist()
+    ic_var_psi = np.zeros((36,)).tolist()
+    
     
     
     """
     Instantiate the Taylor integrator
     """
-    
-    
+    #Optionally use pickle to save/load ta
     if not SAME_PARAMS:
         start_time = time.time()
         ta = hy.taylor_adaptive(
             # The ODEs.
-            [(p, dpdt), (e, dedt), (i, didt), (om, domdt), (w, dwdt), (f, dfdt)],
+            dyn,
+            # [(p, dpdt), (e, dedt), (i, didt), (om, domdt), (w, dwdt), (f, dfdt)],
             # The initial conditions 
-            IC,
-            compact_mode = True
+            IC + ic_var_phi + ic_var_psi,
+            compact_mode=True
         )
         print("--- %s seconds --- to build the Taylor integrator" % (time.time() - start_time))
         
@@ -181,7 +234,7 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     
     t_grid = timegrid * 365.25 * 24 * 60**2 /T_0
     #Roughly approximated by:
-    t_grid =  np.append(0,(np.linspace(0,10*16.056,10*228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+    # t_grid =  np.append(0,(np.linspace(0,16.056,10*228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
 
     
     
@@ -250,78 +303,9 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     
     
     #Returns  observations (AU, meters/second)
-    return [rx,ry,rz] , [vx * D_0 / T_0,vy * D_0 / T_0,vz * D_0 / T_0], lf
+    return [rx,ry,rz] , [vx * D_0 / T_0,vy * D_0 / T_0,vz * D_0 / T_0]
 
 
 
-if __name__ == "__main__":
-    
-    #Amount of dark matter shells
-    N = 20
-    
-    #Dark matter mascons (in MBH masses units)
-    mis = N*[0] #-> 0 dark matter, has no effect
-    
-    #Mascon distance from MBH (in AU)
-    ris = np.linspace(0,1000,N)
-    
-    [rx,ry,rz] , [vx,vy,vz] ,lf= simulateOrbits(False, mis, ris)
-    
-    
-    
-    #Plot position and MBH
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot(rx[1:], ry[1:], rz[1:], label='Position')
-    ax.scatter(rx[0], ry[0], rz[0], label='Start',color='lawngreen')
-    ax.scatter(rx[-1], ry[-1], rz[-1], label='End',color="red")
-    ax.scatter(0,0,0,color='black',label="MBH")
-    ax.set_xlabel('rX')
-    ax.set_ylabel('rY')
-    ax.set_zlabel('rZ')
-    
-    #Plot DM shells (3D spheres)
-    u = np.linspace(0, 2 * np.pi, 20)
-    v = np.linspace(0, np.pi, 20)
-    
-    x_sphere = 1 * np.outer(np.cos(u), np.sin(v))
-    y_sphere = 1 * np.outer(np.sin(u), np.sin(v))
-    z_sphere = 1 * np.outer(np.ones(np.size(u)), np.cos(v))
-    
-    for i in range(N):
-        #Only plot if dark matter mass is not zero
-        if mis[i] != 0:
-            surf =ax.plot_surface(ris[i]*x_sphere, ris[i]*y_sphere, ris[i]*z_sphere,  \
-                rstride=1, cstride=1, color='black', linewidth=0, alpha=0.1,label='DM shell(s)')
-            surf._facecolors2d = surf._facecolor3d
-            surf._edgecolors2d = surf._edgecolor3d
-            
-    plotlim = (max(max(abs(rx)),max(abs(ry)),max(abs(rz))))
-    ax.set_xlim(-plotlim,plotlim)
-    ax.set_ylim(-plotlim,plotlim)
-    ax.set_zlim(-plotlim,plotlim)
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys())
-    plt.show()
-    
-    
-    #Plot velocity
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.plot(vx[1:], vy[1:], vz[1:], label='Velocity')
-    # ax.set_xlabel('vX')
-    # ax.set_ylabel('vY')
-    # ax.set_zlabel('vZ')
-    # ax.legend()
-    # plt.show()
-
-
-
-
-
-
-
-
-
+reconstructDistribution(True,[1],[1])
 

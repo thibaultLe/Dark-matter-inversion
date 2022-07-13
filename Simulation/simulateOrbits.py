@@ -61,10 +61,11 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     a_mpe = 2 * R_mpe * np.tan(alpha_mpe * np.pi / (2*648000)) * 3.08567758149e+16 / D_0
     p_mpe = a_mpe * (1-e_mpe**2) 
     T_period = np.sqrt(a_mpe**3)*2*np.pi
+    # print(T_period)
     # T_0mpe =  2010.3561125977762 * 365.25 * 24 * 60**2 /T_0
     
     #Initial conditions:
-    IC= [p_mpe, e_mpe, 134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
+    IC= [p_mpe, e_mpe, -134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
       66.2689390128 / 180 * np.pi, -np.pi]
     
     
@@ -158,7 +159,7 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     t_grid = timegrid * 365.25 * 24 * 60**2 /T_0
     #Roughly approximated by:
     # t_grid =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
-    
+
     
     
     """
@@ -232,15 +233,15 @@ def simulateOrbits(PNCORRECTION,mis,ris):
 if __name__ == "__main__":
     
     #Amount of dark matter shells
-    n = 5
+    N = 5
     
-    # mis = [10**(-5)] + (n-1)*[0]
-    # mis = n*[10**(-3)]
-    mis = n*[0] #-> 0 dark matter, has no effect (confirmed)
+    #Dark matter mascons (in MBH masses units)
+    mis = N*[0] #-> 0 dark matter, has no effect
     
-    ris = np.linspace(0,1000,n)
+    #Mascon distance from MBH (in AU)
+    ris = np.linspace(0,1000,N)
     
-    [rx,ry,rz] , [vx,vy,vz] = simulateOrbits(True, mis, ris)
+    [rx,ry,rz] , [vx,vy,vz] = simulateOrbits(False, mis, ris)
     
     
     
@@ -263,7 +264,7 @@ if __name__ == "__main__":
     y_sphere = 1 * np.outer(np.sin(u), np.sin(v))
     z_sphere = 1 * np.outer(np.ones(np.size(u)), np.cos(v))
     
-    for i in range(n):
+    for i in range(N):
         #Only plot if dark matter mass is not zero
         if mis[i] != 0:
             surf =ax.plot_surface(ris[i]*x_sphere, ris[i]*y_sphere, ris[i]*z_sphere,  \
@@ -291,21 +292,6 @@ if __name__ == "__main__":
     # ax.legend()
     # plt.show()
 
-
-
-    #Plot dark matter distribution
-    #Bahcall-Wolf cusp model:
-    # fig = plt.figure()
-    # rDM = np.linspace(10**(-5),10**(-2),1000)
-    # rho0 = 2.24*10**(-11) * (D_0**3) / M_0
-    # r0 = 2474.01
-    # rho = rho0 * (rDM / r0)**(-7/4)
-    # plt.plot(rDM,rho)
-    # plt.scatter(ris, mis)
-    # plt.xlim(0)
-    # plt.ylim(0)
-    # plt.xlabel('Distance from MBH (in AU)')
-    # plt.ylabel('Mass (in MBH masses)')
 
 
 

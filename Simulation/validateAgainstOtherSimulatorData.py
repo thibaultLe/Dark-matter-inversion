@@ -19,7 +19,7 @@ def getDataFromText(filename):
 """
 Set parameters:
 """
-PNCORRECTION = True
+PNCORRECTION = False
 
 #Amount of dark matter shells
 n = 5
@@ -57,7 +57,8 @@ test = []
 for i in range(len(timegrid)):
     ydifs.append(AU_to_arcseconds(ry[i]) - comparedYs[i])
     xdifs.append(AU_to_arcseconds(rx[i]) - comparedXs[i])
-    vzdifs.append(vz[i] / (1000) - comparedVZs[i])
+    vzdifs.append(-vz[i] / (1000) - comparedVZs[i])
+
 
 #Convert back from t=0 of first observation to t = timegrid[0]
 timegrid = timegrid + timeoffset
@@ -78,7 +79,7 @@ plt.ylabel('Value')
 plt.legend()
 
 plt.figure()
-plt.plot(timegrid,vz / 1000 ,label='RV (vz), [km/s]')
+plt.plot(timegrid,-vz / 1000 ,label='RV (vz), [km/s]')
 plt.plot(timegrid,comparedVZs,label='Truth')
 plt.xlabel('Time (years)')
 plt.ylabel('Value')

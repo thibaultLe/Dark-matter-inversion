@@ -122,8 +122,8 @@ plt.figure()
 plt.xlabel('Time (years)')
 plt.ylabel('X PN - X DM  [µas]')
 plt.scatter(timegrid,AU_to_arcseconds(rxPN-rxDM)*1e6,s=10,label='Difference')
-plt.plot(timegrid,len(timegrid)*[25],'--',label='Precision',color='red')
-plt.plot(timegrid,len(timegrid)*[-25],'--',color='red')
+plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
 plt.legend()
 
 #Plot difference of DM:
@@ -131,8 +131,8 @@ plt.figure()
 plt.xlabel('Time (years)')
 plt.ylabel('Y PN - Y DM  [µas]')
 plt.scatter(timegrid,AU_to_arcseconds(ryPN-ryDM)*1e6,s=10,label='Difference')
-plt.plot(timegrid,len(timegrid)*[25],'--',label='Precision',color='red')
-plt.plot(timegrid,len(timegrid)*[-25],'--',color='red')
+plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
 plt.legend()
 
 
@@ -141,8 +141,8 @@ plt.figure()
 plt.xlabel('Time (years)')
 plt.ylabel('VZ PN - VZ DM  [km/s]')
 plt.scatter(timegrid,-(vzPN-vzDM)/1000,s=10,label='Difference')
-plt.plot(timegrid,len(timegrid)*[5],'--',label='Precision',color='red')
-plt.plot(timegrid,len(timegrid)*[-5],'--',color='red')
+plt.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
+plt.plot(timegrid,len(timegrid)*[-10],'--',color='red')
 plt.legend()
 
 

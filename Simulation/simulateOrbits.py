@@ -8,6 +8,7 @@ import heyoka as hy
 import numpy as np
 from matplotlib.pylab import plt
 import time
+import pickle
 
 
 """
@@ -50,7 +51,10 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     #Constant that dictates steepness of sigmoid
     k = 10000
     #Amount of dark matter shells
-    n = len(mis)
+    N = len(mis)
+    
+    #Can use cached version of system or not
+    SAME_PARAMS = True
     
     
     #alpha in arcseconds
@@ -105,8 +109,8 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     # Mascon model (mi, ri), sigmoid approximation of step function
     # heyoka parameter encoding: [m1,m2,...mn,r1,r2,...rn]
     #          ->  par[0..i] for mi, par[n+0..i] for ri
-    listOfSigs = [0.5 + 0.5 * hy.tanh( k * (r - hy.par[n+i])) for i in range(n)]
-    listOfRis = [-G * hy.par[i] / (r**2) * listOfSigs[i] for i in range(n)]
+    listOfSigs = [0.5 + 0.5 * hy.tanh( k * (r - hy.par[N+i])) for i in range(N)]
+    listOfRis = [-G * hy.par[i] / (r**2) * listOfSigs[i] for i in range(N)]
     
     #(23)
     RDM = hy.sum(listOfRis)
@@ -146,15 +150,31 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     Instantiate the Taylor integrator
     """
     
-    start_time = time.time()
-    ta = hy.taylor_adaptive(
-        # The ODEs.
-        [(p, dpdt), (e, dedt), (i, didt), (om, domdt), (w, dwdt), (f, dfdt)],
-        # The initial conditions 
-        IC
     
-    )
-    print("--- %s seconds --- to build the Taylor integrator" % (time.time() - start_time))
+    if not SAME_PARAMS:
+        start_time = time.time()
+        ta = hy.taylor_adaptive(
+            # The ODEs.
+            [(p, dpdt), (e, dedt), (i, didt), (om, domdt), (w, dwdt), (f, dfdt)],
+            # The initial conditions 
+            IC
+        
+        )
+        print("--- %s seconds --- to build the Taylor integrator" % (time.time() - start_time))
+        
+        # ## Pickle save/load
+        ta_file = open("ta_saved","wb")
+        pickle.dump(ta,ta_file)
+        ta_file.close()
+        
+    else:
+        start_time = time.time()
+        ta_file = open("ta_saved",'rb')
+        ta = pickle.load(ta_file)
+        ta_file.close()
+        print("--- %s seconds --- to load the Taylor integrator" % (time.time() - start_time))
+    
+    
     
     t_grid = timegrid * 365.25 * 24 * 60**2 /T_0
     #Roughly approximated by:
@@ -165,12 +185,13 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     """
     Set dark matter distribution (masses and radii of shells), in units of MBH masses!
     """
-    ta.pars[:n] = mis
+    ta.pars[:N] = mis
     
-    ta.pars[n:] = ris
+    ta.pars[N:] = ris
     
     
     start_time = time.time()
+    
     out = ta.propagate_grid(t_grid)
     print("--- %s seconds --- to propagate" % (time.time() - start_time))
     
@@ -226,14 +247,14 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     
     
     #Returns  observations (AU, meters/second)
-    return [rx,ry,rz] , [vx * D_0 / T_0,vy * D_0 / T_0,vz * D_0 / T_0]
+    return [rx,ry,rz] , [vx * D_0 / T_0,vy * D_0 / T_0,vz * D_0 / T_0], lf
 
 
 
 if __name__ == "__main__":
     
     #Amount of dark matter shells
-    N = 5
+    N = 20
     
     #Dark matter mascons (in MBH masses units)
     mis = N*[0] #-> 0 dark matter, has no effect
@@ -241,7 +262,7 @@ if __name__ == "__main__":
     #Mascon distance from MBH (in AU)
     ris = np.linspace(0,1000,N)
     
-    [rx,ry,rz] , [vx,vy,vz] = simulateOrbits(False, mis, ris)
+    [rx,ry,rz] , [vx,vy,vz] ,lf= simulateOrbits(False, mis, ris)
     
     
     

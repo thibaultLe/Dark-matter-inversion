@@ -20,6 +20,8 @@ def AU_to_arcseconds(dist):
     R = 2.5540153e+20
     return 2 * np.arctan(dist*D_0/(2*R)) * 206264.8
 
+def enclosedMass(a,rho0):
+    return (4 * a**3 * np.pi * r0**3 * rho0) / ( 3 * (a**2 + r0**2)**(3/2))
 
 
 comparedData = np.loadtxt('Kepler.txt')
@@ -31,7 +33,7 @@ N = 20
 mis0 = N*[0] #-> 0 dark matter, has no effect
 ris0 = np.linspace(0,1000,N)
 
-[rxPN,ryPN,rzPN] , [vxPN,vyPN,vzPN] = simulateOrbits(True, mis0, ris0)
+[rxPN,ryPN,rzPN] , [vxPN,vyPN,vzPN] , lf= simulateOrbits(True, mis0, ris0)
 
 
 
@@ -52,23 +54,20 @@ rhoPlum = rho0plum *( 1. + ((rDM**2) / (r0**2)))**(-5/2)
 #Cusp model:
 # rhoCusp = rho0cusp * (rDM / r0)**(-7/4)
 
-def enclosedMass(a,rho0):
-    return (4 * a**3 * np.pi * r0**3 * rho0) / ( 3 * (a**2 + r0**2)**(3/2))
-
-
+#Convert enclosed mass to mascons
 x_right = rDM[::round(n/(N+1))] # ri's of mascon shells
 ris = x_right[1:]
 y_right = enclosedMass(rDM,rho0plum)[::round(n/(N+1))] # enclosed mi's of mascon shells
 #mascon masses = difference in enclosed mass:
 mis = [t - s for s, t in zip(y_right, y_right[1:])]
 
-print('ris:',ris)
-print('mis:',mis)
+# print('ris:',ris)
+# print('mis:',mis)
 
 #Check numerical stability by setting most mascons to zero:
-# for i in range(len(mis)):
-#     if i != 5:
-#         mis[i] = 0
+for i in range(len(mis)):
+    if i != 1 and i != 4 and i != 7:
+        mis[i] = 0
 # print('mis:',mis)
 
 
@@ -115,62 +114,163 @@ plt.legend()
 
 
 
-[rxDM,ryDM,rzDM] , [vxDM,vyDM,vzDM] = simulateOrbits(True, mis, ris)
+# [rxDM,ryDM,rzDM] , [vxDM,vyDM,vzDM] = simulateOrbits(True, mis, ris)
 
-#Plot difference of DM:
+#Plot individual differences of mascons:
+mis1 = mis.copy()
+# mis1[1] = 0.0001597836898638425
+mis1[4] = 0
+mis1[7] = 0
+
+[rxDM1,ryDM1,rzDM1] , [vxDM1,vyDM1,vzDM1] ,lf1 = simulateOrbits(True, mis1, ris)
+print(mis1)
+
+mis4 = mis.copy()
+# mis4[4] = 0.0001597836898638425
+mis4[1] = 0
+mis4[7] = 0
+
+[rxDM4,ryDM4,rzDM4] , [vxDM4,vyDM4,vzDM4],lf4 = simulateOrbits(True, mis4, ris)
+print(mis4)
+
+mis7 = mis.copy()
+# mis7[7] = 0.0001597836898638425
+mis7[1] = 0
+mis7[4] = 0
+
+[rxDM7,ryDM7,rzDM7] , [vxDM7,vyDM7,vzDM7],lf7 = simulateOrbits(True, mis7, ris)
+print(mis7)
+
+
+
+# #Plot difference of DM in function of time:
+# plt.figure()
+# plt.xlabel('Time (years)')
+# plt.ylabel('X PN - X DM  [µas]')
+# plt.scatter(timegrid,AU_to_arcseconds(rxPN-rxDM1)*1e6,s=10,label='mascon 1')
+# plt.scatter(timegrid,AU_to_arcseconds(rxPN-rxDM4)*1e6,s=10,label='mascon 4')
+# plt.scatter(timegrid,AU_to_arcseconds(rxPN-rxDM7)*1e6,s=10,label='mascon 7')
+# plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+# plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+# plt.legend()
+
+#Plot in function of f:
 plt.figure()
-plt.xlabel('Time (years)')
+plt.xlabel('True anomaly (f)')
 plt.ylabel('X PN - X DM  [µas]')
-plt.scatter(timegrid,AU_to_arcseconds(rxPN-rxDM)*1e6,s=10,label='Difference')
-plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
-plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+plt.scatter(lf1,AU_to_arcseconds(rxPN-rxDM1)*1e6,s=10,label='mascon 1')
+plt.scatter(lf4,AU_to_arcseconds(rxPN-rxDM4)*1e6,s=10,label='mascon 4')
+plt.scatter(lf7,AU_to_arcseconds(rxPN-rxDM7)*1e6,s=10,label='mascon 7')
+plt.plot(lf4,len(lf4)*[50],'--',label='Precision',color='red')
+plt.plot(lf4,len(lf4)*[-50],'--',color='red')
 plt.legend()
 
-#Plot difference of DM:
 plt.figure()
-plt.xlabel('Time (years)')
+plt.xlabel('True anomaly (f)')
 plt.ylabel('Y PN - Y DM  [µas]')
-plt.scatter(timegrid,AU_to_arcseconds(ryPN-ryDM)*1e6,s=10,label='Difference')
-plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
-plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+plt.scatter(lf1,AU_to_arcseconds(ryPN-ryDM1)*1e6,s=10,label='mascon 1')
+plt.scatter(lf4,AU_to_arcseconds(ryPN-ryDM4)*1e6,s=10,label='mascon 4')
+plt.scatter(lf7,AU_to_arcseconds(ryPN-ryDM7)*1e6,s=10,label='mascon 7')
+plt.plot(lf4,len(lf4)*[50],'--',label='Precision',color='red')
+plt.plot(lf4,len(lf4)*[-50],'--',color='red')
 plt.legend()
 
-
-#Plot difference of DM:
 plt.figure()
-plt.xlabel('Time (years)')
+plt.xlabel('True anomaly (f)')
+plt.ylabel('Z PN - Z DM  [µas]')
+plt.scatter(lf1,AU_to_arcseconds(rzPN-rzDM1)*1e6,s=10,label='mascon 1')
+plt.scatter(lf4,AU_to_arcseconds(rzPN-rzDM4)*1e6,s=10,label='mascon 4')
+plt.scatter(lf7,AU_to_arcseconds(rzPN-rzDM7)*1e6,s=10,label='mascon 7')
+plt.plot(lf4,len(lf4)*[50],'--',label='Precision',color='red')
+plt.plot(lf4,len(lf4)*[-50],'--',color='red')
+plt.legend()
+
+plt.figure()
+plt.xlabel('True anomaly (f)')
+plt.ylabel('VX PN - VX DM [km/s]')
+plt.scatter(lf1,(vxPN-vxDM1)/1000,s=10,label='mascon 1')
+plt.scatter(lf4,(vxPN-vxDM4)/1000,s=10,label='mascon 4')
+plt.scatter(lf7,(vxPN-vxDM7)/1000,s=10,label='mascon 7')
+plt.plot(lf4,len(lf4)*[10],'--',label='Precision',color='red')
+plt.plot(lf4,len(lf4)*[-10],'--',color='red')
+plt.legend()
+
+plt.figure()
+plt.xlabel('True anomaly (f)')
+plt.ylabel('VY PN - VY DM  [km/s]')
+plt.scatter(lf1,(vyPN-vyDM1)/1000,s=10,label='mascon 1')
+plt.scatter(lf4,(vyPN-vyDM4)/1000,s=10,label='mascon 4')
+plt.scatter(lf7,(vyPN-vyDM7)/1000,s=10,label='mascon 7')
+plt.plot(lf4,len(lf4)*[10],'--',label='Precision',color='red')
+plt.plot(lf4,len(lf4)*[-10],'--',color='red')
+plt.legend()
+
+plt.figure()
+plt.xlabel('True anomaly (f)')
 plt.ylabel('VZ PN - VZ DM  [km/s]')
-plt.scatter(timegrid,-(vzPN-vzDM)/1000,s=10,label='Difference')
-plt.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
-plt.plot(timegrid,len(timegrid)*[-10],'--',color='red')
+plt.scatter(lf1,(vzPN-vzDM1)/1000,s=10,label='mascon 1')
+plt.scatter(lf4,(vzPN-vzDM4)/1000,s=10,label='mascon 4')
+plt.scatter(lf7,(vzPN-vzDM7)/1000,s=10,label='mascon 7')
+plt.plot(lf4,len(lf4)*[10],'--',label='Precision',color='red')
+plt.plot(lf4,len(lf4)*[-10],'--',color='red')
 plt.legend()
 
 
 
-#Plot effects of DM:
-plt.figure()
-plt.xlabel('Time (years)')
-plt.ylabel('Value')
-plt.scatter(timegrid,AU_to_arcseconds(rxDM)*1e6,label='X DM , [µas]',s=10)
-plt.scatter(timegrid,AU_to_arcseconds(rxPN)*1e6,label='X PN , [µas]',s=10)
-plt.legend()
+# #Plot difference of DM:
+# plt.figure()
+# plt.xlabel('Time (years)')
+# plt.ylabel('X PN - X DM  [µas]')
+# plt.scatter(timegrid,AU_to_arcseconds(rxPN-rxDM)*1e6,s=10,label='Difference')
+# plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+# plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+# plt.legend()
+
+# #Plot difference of DM:
+# plt.figure()
+# plt.xlabel('Time (years)')
+# plt.ylabel('Y PN - Y DM  [µas]')
+# plt.scatter(timegrid,AU_to_arcseconds(ryPN-ryDM)*1e6,s=10,label='Difference')
+# plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+# plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+# plt.legend()
 
 
-#Plot effects of DM:
-plt.figure()
-plt.xlabel('Time (years)')
-plt.ylabel('Value')
-plt.scatter(timegrid,AU_to_arcseconds(ryDM)*1e6,label='Y DM , [µas]',s=10)
-plt.scatter(timegrid,AU_to_arcseconds(ryPN)*1e6,label='Y PN , [µas]',s=10)
-plt.legend()
+# #Plot difference of DM:
+# plt.figure()
+# plt.xlabel('Time (years)')
+# plt.ylabel('VZ PN - VZ DM  [km/s]')
+# plt.scatter(timegrid,-(vzPN-vzDM)/1000,s=10,label='Difference')
+# plt.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
+# plt.plot(timegrid,len(timegrid)*[-10],'--',color='red')
+# plt.legend()
 
 
-#Plot effects of DM:
-plt.figure()
-plt.xlabel('Time (years)')
-plt.ylabel('Value')
-plt.scatter(timegrid,-vzDM/1000,label='VZ DM , [km/s]',s=10)
-plt.scatter(timegrid,-vzPN/1000,label='VZ PN , [km/s]',s=10)
-plt.legend()
+
+# #Plot effects of DM:
+# plt.figure()
+# plt.xlabel('Time (years)')
+# plt.ylabel('Value')
+# plt.scatter(timegrid,AU_to_arcseconds(rxDM)*1e6,label='X DM , [µas]',s=10)
+# plt.scatter(timegrid,AU_to_arcseconds(rxPN)*1e6,label='X PN , [µas]',s=10)
+# plt.legend()
+
+
+# #Plot effects of DM:
+# plt.figure()
+# plt.xlabel('Time (years)')
+# plt.ylabel('Value')
+# plt.scatter(timegrid,AU_to_arcseconds(ryDM)*1e6,label='Y DM , [µas]',s=10)
+# plt.scatter(timegrid,AU_to_arcseconds(ryPN)*1e6,label='Y PN , [µas]',s=10)
+# plt.legend()
+
+
+# #Plot effects of DM:
+# plt.figure()
+# plt.xlabel('Time (years)')
+# plt.ylabel('Value')
+# plt.scatter(timegrid,-vzDM/1000,label='VZ DM , [km/s]',s=10)
+# plt.scatter(timegrid,-vzPN/1000,label='VZ PN , [km/s]',s=10)
+# plt.legend()
 
 

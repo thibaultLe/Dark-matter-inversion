@@ -22,6 +22,26 @@ Reconstructs dark matter distribution starting from an initial guess
 @return: mis distribution
 """
 def reconstructDistribution(PNCORRECTION,mis,ris):
+    """
+    
+
+    Parameters
+    ----------
+    PNCORRECTION : boolean
+        True if using 1PN correction
+    mis : list of floats
+        initial guesses of masses of dark matter shells in MBH masses
+    ris : list of floats
+        distances of dark matter shells in AU.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+    TYPE
+        DESCRIPTION.
+
+    """
     
     #Can use cached version of system or not
     SAME_PARAMS = False
@@ -74,7 +94,7 @@ def reconstructDistribution(PNCORRECTION,mis,ris):
     
     #Initial conditions:
     IC= [p_mpe, e_mpe, -134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
-      66.2689390128 / 180 * np.pi, -np.pi]
+      66.2689390128 / 180 * np.pi, 0]
     
     
     
@@ -171,21 +191,21 @@ def reconstructDistribution(PNCORRECTION,mis,ris):
     dphidt = dfdx@phi
     
     #Psi:
-    symbols_psi = []
-    for i in range(6):
-        for j in range(6):
-            symbols_psi.append("psi_"+str(i)+str(j))  
-    psi = np.array(hy.make_vars(*symbols_psi)).reshape((6,6))
+    # symbols_psi = []
+    # for i in range(6):
+    #     for j in range(6):
+    #         symbols_psi.append("psi_"+str(i)+str(j))  
+    # psi = np.array(hy.make_vars(*symbols_psi)).reshape((6,6))
     
     #ris is a parameter in heyoka, but should be fixed value. Impact on variational eqs?
-    dfdx = []
-    for i in range(6):
-        for j in range(6):
-            dfdx.append(hy.diff(func[i],hy.par[j]))
-    dfdx = np.array(dfdx).reshape((6,6))
+    # dfdx = []
+    # for i in range(6):
+    #     for j in range(6):
+    #         dfdx.append(hy.diff(func[i],hy.par[j]))
+    # dfdx = np.array(dfdx).reshape((6,6))
     
-    # The (variational) equations of motion
-    dpsidt = dfdx@psi
+    # # The (variational) equations of motion
+    # dpsidt = dfdx@psi
     
     
     
@@ -194,11 +214,11 @@ def reconstructDistribution(PNCORRECTION,mis,ris):
         dyn.append((state, rhs))
     for state, rhs in zip(phi.reshape((36,)),dphidt.reshape((36,))):
         dyn.append((state, rhs))
-    for state, rhs in zip(psi.reshape((36,)),dpsidt.reshape((36,))):
-        dyn.append((state, rhs))
+    # for state, rhs in zip(psi.reshape((36,)),dpsidt.reshape((36,))):
+    #     dyn.append((state, rhs))
     # These are the initial conditions on the variational equations (the identity matrix)
     ic_var_phi = np.eye(6).reshape((36,)).tolist()
-    ic_var_psi = np.zeros((36,)).tolist()
+    # ic_var_psi = np.zeros((36,)).tolist()
     
     
     
@@ -213,7 +233,8 @@ def reconstructDistribution(PNCORRECTION,mis,ris):
             dyn,
             # [(p, dpdt), (e, dedt), (i, didt), (om, domdt), (w, dwdt), (f, dfdt)],
             # The initial conditions 
-            IC + ic_var_phi + ic_var_psi,
+            # IC + ic_var_phi + ic_var_psi,
+            IC + ic_var_phi,
             compact_mode=True
         )
         print("--- %s seconds --- to build the Taylor integrator" % (time.time() - start_time))
@@ -252,16 +273,137 @@ def reconstructDistribution(PNCORRECTION,mis,ris):
     print("--- %s seconds --- to propagate" % (time.time() - start_time))
     
     
+    
+    
+    def corrector(ta, x0, obs, t_obs):
+        """
+        
+
+        Parameters
+        ----------
+        ta : hy.taylor_adaptive
+            System of equations.
+        x0 : list of floats
+            initial conditions (p,e,i,om,w,f)
+        obs : list of floats
+            observation at time tj of (p,e,i,om,w,f)
+        t_obs : float
+            time tj
+
+        Returns
+        -------
+        ta : hy.taylor_adaptive
+            System of equations.
+        x0_new
+            The corrected initial conditions (p,e,i,om,w,f).
+
+        """
+        
+        
+        """
+        Performs and logs a step of a corrector algorithm that takes a numerical integration from x0 -> T -> xf. The result
+        is a new tentative x0 that should result in a closed orbit.
+        """
+        
+        print('Observation:',obs)
+        
+        
+        #Simulate ta from initial guess until t_obs
+        ta.state[:] = np.append(x0,np.array(ic_var_phi))
+        ta.time = 0
+        ta.propagate_until(t_obs)
+        
+        
+        print('Simulation:',ta.state[:6])
+        
+        #Take difference of observation with simulation from initial guess
+        difference = np.subtract(ta.state[:6], obs)
+        print('Difference:',difference)
+        
+        
+        Phi = ta.state[6:].reshape((6,6))
+        
+        stepsize = 1
+        
+        
+        
+        A = Phi
+        # print(A)
+    
+        # We construct the r.h.s.
+        b = (difference).reshape(-1,1)
+        
+        delta = -stepsize * 2 * A@b
+        
+        delta = delta.reshape(1,6)[0]
+        print('delta:',delta)
+        x0_new = x0+delta
+    
+        print('New guess for IC:',x0_new)
+        
+        # Reset the state
+        # ta.time = 0.
+        # ta.state[:] = x0_new.reshape((-1,)).tolist() + ic_var_phi
+        # # Go ...
+        # ta.propagate_until(t_obs)
+        # New error is:
+        # b = (x0_new - ta.state[:6]).reshape(-1,1)
+        # print("new error is:", np.linalg.norm(b))
+        
+        
+        
+        return ta, x0_new.tolist()
+    
+    
+    
+    
+    np.set_printoptions(precision=5)
+    
+    #Only f is changed from -np.pi to -3.1
+    # ic_guess = [p_mpe, e_mpe, -134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
+    #   66.2689390128 / 180 * np.pi, 1]
+    ic_guess = np.add(IC, len(IC)*[0.01])
+    # print(ic_guess)
+        
+    #last observation time
+    last_time = t_grid[-1]
+        
+    #Time of observation = 293097
+    t_obs = last_time
+    
+    #Setup for fake reconstruction:
+    ta.state[:6] = IC
+    ta.time = 0
+    ta.propagate_until(t_obs)
+    
+    observation = ta.state[:6].copy()
+    
+    
+    print("")
+    print("True (observation):",IC)
+    print('Guess (simulation):',ic_guess)
+    plt.figure()
+    for i in range(5):
+        print("\n")
+        
+        ta, ic_guess = corrector(ta, ic_guess, observation, t_obs)
+        plt.scatter(i,ic_guess[5],color='blue')
+        
+    plt.ylabel("Difference with true value")
+    plt.xlabel("Amount of iterations")
+    plt.title("Gradient descent for finding initial f")
+    
+    
     #Convert to numpy arrays for plotting in 3D with x,y,z
-    lp  = np.asarray(out[4][:, 0])
-    le  = np.asarray(out[4][:, 1])
-    li  = np.asarray(out[4][:, 2])
-    lom = np.asarray(out[4][:, 3])
-    lw  = np.asarray(out[4][:, 4])
-    lf  = np.asarray(out[4][:, 5])
+    # lp  = np.asarray(out[4][:, 0])
+    # le  = np.asarray(out[4][:, 1])
+    # li  = np.asarray(out[4][:, 2])
+    # lom = np.asarray(out[4][:, 3])
+    # lw  = np.asarray(out[4][:, 4])
+    # lf  = np.asarray(out[4][:, 5])
     
     
-    lr = lp / (1 + le * np.cos(lf))
+    # lr = lp / (1 + le * np.cos(lf))
     
     # Plot parameters in function of time
     # plt.figure()
@@ -290,22 +432,22 @@ def reconstructDistribution(PNCORRECTION,mis,ris):
     
     
     # Position and velocity conversion
-    rx = lr * (np.cos(lom) * np.cos(lw + lf) - np.cos(li)*np.sin(lom)*np.sin(lw+lf))
-    ry = lr * (np.sin(lom) * np.cos(lw + lf) + np.cos(li)*np.cos(lom)*np.sin(lw+lf))
-    rz = lr * np.sin(li) * np.sin(lw + lf)
+    # rx = lr * (np.cos(lom) * np.cos(lw + lf) - np.cos(li)*np.sin(lom)*np.sin(lw+lf))
+    # ry = lr * (np.sin(lom) * np.cos(lw + lf) + np.cos(li)*np.cos(lom)*np.sin(lw+lf))
+    # rz = lr * np.sin(li) * np.sin(lw + lf)
     
     
-    vx = -np.sqrt(GM/lp) * (np.cos(lom) * (np.sin(lw+lf) + le*np.sin(lw)) + \
-             np.cos(li) * np.sin(lom) * (np.cos(lw+lf) + le*np.cos(lw)))
-    vy = -np.sqrt(GM/lp) * (np.sin(lom) * (np.sin(lw+lf) + le*np.sin(lw)) - \
-             np.cos(li) * np.cos(lom) * (np.cos(lw+lf) + le*np.cos(lw)))
-    vz = np.sqrt(GM/lp) * np.sin(li) * (np.cos(lw+lf) + le * np.cos(lw))
+    # vx = -np.sqrt(GM/lp) * (np.cos(lom) * (np.sin(lw+lf) + le*np.sin(lw)) + \
+    #          np.cos(li) * np.sin(lom) * (np.cos(lw+lf) + le*np.cos(lw)))
+    # vy = -np.sqrt(GM/lp) * (np.sin(lom) * (np.sin(lw+lf) + le*np.sin(lw)) - \
+    #          np.cos(li) * np.cos(lom) * (np.cos(lw+lf) + le*np.cos(lw)))
+    # vz = np.sqrt(GM/lp) * np.sin(li) * (np.cos(lw+lf) + le * np.cos(lw))
     
     
     #Returns  observations (AU, meters/second)
-    return [rx,ry,rz] , [vx * D_0 / T_0,vy * D_0 / T_0,vz * D_0 / T_0]
+    return mis
 
 
 
-reconstructDistribution(True,[1],[1])
+reconstructDistribution(False,[0],[1])
 

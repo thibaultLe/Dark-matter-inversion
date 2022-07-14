@@ -181,7 +181,9 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     
     t_grid = timegrid * 365.25 * 24 * 60**2 /T_0
     #Roughly approximated by:
-    t_grid =  np.append(0,(np.linspace(0,10*16.056,10*228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+    # t_grid =  np.append(0,(np.linspace(0,10*16.056,10*228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+    
+    last_t = t_grid[-1]
 
     
     
@@ -196,7 +198,11 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     start_time = time.time()
     
     out = ta.propagate_grid(t_grid)
+    # print(ta.state)
+    # print(out)
+    
     print("--- %s seconds --- to propagate" % (time.time() - start_time))
+    
     
     
     #Convert to numpy arrays for plotting in 3D with x,y,z
@@ -315,6 +321,9 @@ if __name__ == "__main__":
     # ax.set_zlabel('vZ')
     # ax.legend()
     # plt.show()
+    
+    # velocity = np.sqrt(vx**2 + vy**2 + vz**2)
+    # print(max(velocity))
 
 
 

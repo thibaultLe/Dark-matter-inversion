@@ -114,16 +114,6 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = False):
     IC= [p_mpe, e_mpe, -134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
       66.2689390128 / 180 * np.pi, 1]
         
-        
-    
-    
-    
-    #Create a realistic observation time grid
-    comparedData = np.loadtxt('Kepler.txt')
-    timegrid = comparedData[:,0]
-    #Use an offset so that t=0 corresponds to the first observation
-    timeoffset = timegrid[0]
-    timegrid = timegrid - timeoffset
     
     
     
@@ -319,13 +309,6 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = False):
         print("--- %s seconds --- to load the Taylor integrator" % (time.time() - start_time))
     
     
-    
-    t_grid = timegrid * 365.25 * 24 * 60**2 /T_0
-    #Roughly approximated by:
-    # t_grid =  np.append(0,(np.linspace(0,16.056,10*228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
-
-    
-    
     """
     Set dark matter distribution (masses and radii of shells), in units of MBH masses!
     """
@@ -333,11 +316,6 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = False):
     
     ta.pars[N:] = ris
     
-    
-    # start_time = time.time()
-    
-    # out = ta.propagate_grid(t_grid)
-    # print("--- %s seconds --- to propagate" % (time.time() - start_time))
     
     
     
@@ -440,7 +418,8 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = False):
     # print(ic_guess)
         
     #last observation time
-    last_time = t_grid[-1]
+    last_time = 2.032859999999999900e+03
+    
         
     #Time of observation = 293097
     t_obs = last_time

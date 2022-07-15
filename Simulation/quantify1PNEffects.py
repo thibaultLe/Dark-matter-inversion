@@ -24,8 +24,8 @@ mis = n*[0] #-> 0 dark matter, has no effect (confirmed)
 ris = np.linspace(0,1000,n)
 
 
-[rx,ry,rz] , [vx,vy,vz] = simulateOrbits(False, mis, ris)
-[rxPN,ryPN,rzPN] , [vxPN,vyPN,vzPN] = simulateOrbits(True, mis, ris)
+[rx,ry,rz] , [vx,vy,vz],_ = simulateOrbits(False, mis, ris)
+[rxPN,ryPN,rzPN] , [vxPN,vyPN,vzPN],_ = simulateOrbits(True, mis, ris)
 
 #Plot difference of 1PN:
 plt.figure()

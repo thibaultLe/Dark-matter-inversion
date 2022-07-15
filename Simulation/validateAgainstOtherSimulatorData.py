@@ -47,7 +47,7 @@ timegrid = comparedData[:,0]
 timeoffset = timegrid[0]
 timegrid = timegrid - timeoffset
 
-[rx,ry,rz] , [vx,vy,vz] = simulateOrbits(PNCORRECTION, mis, ris)
+[rx,ry,rz] , [vx,vy,vz] ,lf = simulateOrbits(PNCORRECTION, mis, ris)
 
 
 ydifs = []

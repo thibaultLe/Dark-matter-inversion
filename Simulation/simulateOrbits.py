@@ -45,6 +45,7 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     # time t' = t/T_0 -> 1 time unit ~= 40 minutes (induced by G'=1))
     T_0 = np.sqrt((D_0**3)/(G_orig * M_0))
     
+    
     # technically G'
     G = 1
     #MBH mass
@@ -72,8 +73,13 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     # T_0mpe =  2010.3561125977762 * 365.25 * 24 * 60**2 /T_0
     
     #Initial conditions:
-    IC= [p_mpe, e_mpe, -134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
-      66.2689390128 / 180 * np.pi, -np.pi]
+    # IC= [p_mpe, e_mpe, -134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
+    #   66.2689390128 / 180 * np.pi, -np.pi]
+        
+    # IC= [227.49574 ,  0.88196 , -2.36897 ,  4.02457 ,  1.16789 ,  1.00998]
+    IC = [ 2.70947e+03, -6.67833e-01,  9.69221e+05, -5.98464e+01 , 3.49429e+05,
+     -8.48142e+00]
+    # IC= [225.24331 ,  0.88443 , -2.35096 ,  3.98269 ,  1.15661 ,  1.     ]
     
     
     
@@ -184,6 +190,7 @@ def simulateOrbits(PNCORRECTION,mis,ris):
     # t_grid =  np.append(0,(np.linspace(0,10*16.056,10*228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
     
     last_t = t_grid[-1]
+    # print(last_t)
 
     
     
@@ -272,6 +279,8 @@ if __name__ == "__main__":
     ris = np.linspace(0,1000,N)
     
     [rx,ry,rz] , [vx,vy,vz] ,lf= simulateOrbits(False, mis, ris)
+    
+    print(rx[-1],ry[-1],vz[-1])
     
     
     

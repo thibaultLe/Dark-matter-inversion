@@ -35,7 +35,7 @@ N = 20
 
 #Plot dark matter distribution
 #AU limit
-xlim = 10000
+xlim = 3000
 #Amount of points in linspace
 n = 1000
 #Bahcall-Wolf cusp model:
@@ -57,8 +57,8 @@ y_right = enclosedMass(rDM,rho0plum)[::round(n/(N+1))] # enclosed mi's of mascon
 #mascon masses = difference in enclosed mass:
 mis = [t - s for s, t in zip(y_right, y_right[1:])]
 
-# print('ris:',ris)
-# print('mis:',mis)
+print('ris:',list(ris))
+print('mis:',mis)
 
 #Check numerical stability by setting most mascons to zero:
 # for i in range(len(mis)):

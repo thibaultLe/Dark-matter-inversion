@@ -29,6 +29,27 @@ def convertToCartesian(lp,le,li,lom,lw,lf):
     return rx,ry,rz,vx,vy,vz
 
 
+
+def AU_to_arcseconds(dist):
+    """
+    
+
+    Parameters
+    ----------
+    dist : float or np.array
+        Distance in [AU] to be converted.
+
+    Returns
+    -------
+    float or np.array
+        The converted distance in arcseconds.
+
+    """
+    D_0 = 149597870700
+    R = 2.5540153e+20
+    return 2 * np.arctan(dist*D_0/(2*R)) * 206264.8
+
+
 """
 Reconstructs dark matter distribution starting from an initial guess
 
@@ -59,6 +80,9 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
         DESCRIPTION.
 
     """
+    
+    if len(mis) != len(ris):
+        raise RuntimeError("Lengths of DM masses and distances does not match")
     
     #Can use cached version of system or not
     SAME_PARAMS = False
@@ -92,7 +116,7 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
     #Speed of light (in m/s, then converted) ~= 4.85 AU / 40 minutes
     c = 299792458 * T_0 / D_0
     #Constant that dictates steepness of sigmoid
-    k = 0.01
+    k = 0.1
     #Amount of dark matter shells
     N = len(mis)
     
@@ -219,23 +243,18 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
     
     dphidt = dfdx@phi
     
-    #Psi:
-    # symbols_psi = []
-    # for i in range(6):
-    #     for j in range(6):
-    #         symbols_psi.append("psi_"+str(i)+str(j))  
-    # psi = np.array(hy.make_vars(*symbols_psi)).reshape((6,6))
     
-    #ris is a parameter in heyoka, but should be fixed value. Impact on variational eqs?
-    # dfdx = []
-    # for i in range(6):
-    #     for j in range(6):
-    #         dfdx.append(hy.diff(func[i],hy.par[j]))
-    # dfdx = np.array(dfdx).reshape((6,6))
+    symbols_psi = []
+    for i in range(N):
+        for j in range(6):
+            symbols_psi.append("psi_"+str(i)+str(j))  
+    psi = np.array(hy.make_vars(*symbols_psi)).reshape((6,N))
     
-    # # The (variational) equations of motion
-    # dpsidt = dfdx@psi
-    
+    dpsidt = []
+    for i in range(6):
+        for j in range(N):
+            dpsidt.append(hy.diff(func[i],hy.par[j]))
+    dpsidt = np.array(dpsidt).reshape((6,N))
     
     
     
@@ -246,18 +265,11 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
     for state, rhs in zip(phi.reshape((36,)),dphidt.reshape((36,))):
         dyn.append((state, rhs))
     #Psi
-    # for state, rhs in zip(psi.reshape((36,)),dpsidt.reshape((36,))):
-    #     dyn.append((state, rhs))
-    #Cart
-    # for state, rhs in zip(theta.reshape((36,)),dthetadt.reshape((36,))):
-    #     dyn.append((state, rhs))
-    # These are the initial conditions on the variational equations (the identity matrix)
+    for state, rhs in zip(psi.reshape((6*N,)),dpsidt.reshape((6*N,))):
+        dyn.append((state, rhs))
+    # Initial conditions on the variational equations
     ic_var_phi = np.eye(6).reshape((36,)).tolist()
-    # ic_var_psi = np.zeros((36,)).tolist()
-    
-    
-    # print(theta)
-    # print(dthetadt)
+    ic_var_psi = np.zeros((6*N,)).tolist()
     
     
     """
@@ -271,8 +283,7 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
             dyn,
             # [(p, dpdt), (e, dedt), (i, didt), (om, domdt), (w, dwdt), (f, dfdt)],
             # The initial conditions 
-            # IC + ic_var_phi + ic_var_psi,
-            IC + ic_var_phi,
+            IC + ic_var_phi + ic_var_psi,
             compact_mode=True
         )
         print("--- %s seconds --- to build the Taylor integrator" % (time.time() - start_time))
@@ -290,17 +301,17 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
         print("--- %s seconds --- to load the Taylor integrator" % (time.time() - start_time))
     
     
-    """
-    Set dark matter distribution (masses and radii of shells), in units of MBH masses!
-    """
-    ta.pars[:N] = mis
+    #Derivative of cartesian observation wrt orbital parameters
+    derobsdx = []
+    #rows
+    for i in range(6):
+        #columns
+        for j in range(6):
+            derobsdx.append(hy.diff(cart[i],x[j]))
     
-    ta.pars[N:] = ris
     
     
-    
-    
-    def corrector(ta, x0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t):
+    def corrector(ta, x0, DMm0, DMr, obs, t_obs, alpha, beta1, beta2, eps, m, v, t):
         """
         
 
@@ -310,9 +321,9 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
             System of equations.
         x0 : list of floats
             initial condition guess (p,e,i,om,w,f)
-        obs : list of floats
+        obs : list of list of floats
             observation at time tj of (p,e,i,om,w,f)
-        t_obs : float
+        t_obs : list of floats
             time tj
 
         Returns
@@ -327,189 +338,124 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
         
         """
         Performs and logs a step of a corrector algorithm that takes a numerical integration from x0 -> T -> xf. The result
-        is a new tentative x0 that should result in a closed orbit.
+        is a new tentative x0 that should result in a closer observation
         """
-        if t == 0 or t==iterations-1:
-            if not OBS3:
-                print('Using all 6 obs')
-                print('Observation:',obs)
-            else:
-                print('Using only 3 obs')
-                print('Observation:',obs[0:2]+(obs[5],))
         
         #Reset the state
-        #Can optimize by converting to np arrays before loop
-        ta.state[:] = np.concatenate((x0,np.array(ic_var_phi)))
+        ta.state[:] = np.concatenate((x0,np.array(ic_var_phi),np.array(ic_var_psi)))
+        ta.pars[:N] = DMm0
+        ta.pars[N:] = DMr
         ta.time = 0
         #Simulate ta from initial guess until t_obs
-        ta.propagate_until(t_obs)
+        # ta.propagate_until(t_obs)
+        out = ta.propagate_grid(t_obs)
+        
+        orbparamvalues = np.asarray(out[4][:,[0,1,2,3,4,5]]).copy()
+        
+        simulatedlist = orbparamvalues.copy()
         
         
-        cartesianSim = convertToCartesian(ta.state[0], ta.state[1], ta.state[2], ta.state[3], \
-                                          ta.state[4], ta.state[5])
+        if CARTESIANOBS:
+            simulatedlist = convertToCartesian(simulatedlist[:,0], simulatedlist[:,1], simulatedlist[:,2],\
+                    simulatedlist[:,3], simulatedlist[:,4], simulatedlist[:,5])
+            
+            if OBS3:
+                simulatedlist = np.array(simulatedlist)
+                simulatedlist =  simulatedlist[[0,1,-1],:].transpose()
+        
         
         if t == 0 or t==iterations-1:
-            if CARTESIANOBS:
-                if OBS3:
-                    print('Simulation: ',cartesianSim[0:2]+(cartesianSim[5],))
-                else:
-                    print('Simulation: ',cartesianSim)
-            else:
-                print('Simulation: ',ta.state[:6])
+            print('Simulation: ',simulatedlist)
+            print('Observation:',obs)
+        
         
         #Take difference of observation with simulation from initial guess
-        if CARTESIANOBS:
-            difference = np.subtract(cartesianSim, obs)
-        else:
-            difference = np.subtract(ta.state[:6], obs)
-            
-        # print('difference:',difference)
+        difference = np.subtract(simulatedlist, obs)
         
-        Phi = ta.state[6:42].reshape((6,6))
+        Phi = ta.state[6:6+36].reshape((6,6))
+        
+        Psi = ta.state[6+36:].reshape((6,N))
         
         
-        if CARTESIANOBS:
-            #Theta (cartesian obs):
-            varlist = ["p", "e", "i", "om", "w", "f"]
-            # print(varlist)
-            valuelist = ta.state[:6].copy()
-            # print('peiomwf:',valuelist)
+        gradx0 = np.zeros((1,6))
+        gradDM0 = np.zeros((1,N))
+        
+        #Iterate over observations:
+        for oj in range(len(obs)):
+        #TODO: add stochasticity (random sample instead of full list)
+            if CARTESIANOBS:
+                #Need to multiply by gradient of observed cartesian vs orbital parameters
+                varlist = ["p", "e", "i", "om", "w", "f"]
+                valuelist = orbparamvalues[oj]
+                    
+                peixyzDict = dict(zip(varlist, valuelist))
+                dobsdx = []
+                for i in range(6):
+                    for j in range(6):
+                        dobsdx.append(hy.eval(derobsdx[i*6+j],peixyzDict))
+                dobsdx = np.array(dobsdx).reshape((6,6))
                 
-            peixyzDict = dict(zip(varlist, valuelist))
-            dobsdx = []
-            #rows
-            for i in range(6):
-                #columns
-                for j in range(6):
-                    dobsdx.append(hy.eval(hy.diff(cart[i],x[j]),peixyzDict))
-            dobsdx = np.array(dobsdx).reshape((6,6))
-            
-            # print(dobsdx)
-            # print('dx/de:',hy.eval(hy.diff(cart[0],x[1]),peixyzDict))
-            
-            # print(dobsdx)
-            # plt.matshow(dobsdx,cmap='RdYlGn')
-            # ax = plt.gca()
-            # plt.colorbar()
-            # plt.clim(-1,1)
-            # ax.xaxis.set_ticks_position('bottom')
-            # plt.xticks(range(6),['dp','de','di','dOm','dw','df'])
-            # plt.yticks(range(6),['dx','dy','dz','dvx','dvy','dvz'])
-            # for (i, j), z in np.ndenumerate(dobsdx):
-            #     if z == 0:
-            #         plt.text(j, i, '0', ha='center', va='center')
-            #     else:
-            #         plt.text(j, i, '{:0.2f}'.format(z), ha='center', va='center')
-            # plt.title("Gradient of cartesian over orbital elements")
-            # plt.show()
-            
-        
-        # We construct the r.h.s.
-        b = (difference).reshape(-1,1)
-        # b = b.reshape(1,-1)
-        # print('diff:',b)
-        
-        if OBS3:
-            b = np.delete(b,(2,3,4),axis=0)
-            # b = b.reshape(1,-1)
-        # print('diff:',b)
-        
-        if OBS3:
-            dobsdx = np.delete(dobsdx, (2,3,4), axis=0)
-        # print(dobsdx)
-        
-        # if t == 0:
-        #     print((b).shape)
-        #     print((dobsdx).shape)
-        #     print((Phi).shape)
-    
-        #Calculate gradient wrt initial conditions (phi)
-        if CARTESIANOBS:
             if OBS3:
-                #Only using X,Y and VZ
-                #Wrong:
-                # grad = (2 * np.transpose(dobsdx@Phi)@b).reshape(1,-1)[0]
-                
-                # (b= 1x3)
-                # b = b.reshape(1,-1)
-                # grad = 2 * (b @ dobsdx @ Phi ).reshape(1,-1)[0]
-                grad =  (2 * np.transpose(dobsdx @ Phi) @ b ).reshape(1,-1)[0]
-                
+                dobsdx = np.delete(dobsdx, (2,3,4), axis=0)
+            
+            #Calculate gradient wrt initial conditions (phi)
+            if CARTESIANOBS:
+                gradx0 = gradx0 + (2 * difference[oj] @ dobsdx @ Phi ).reshape(1,-1)[0]
+                gradDM0 = gradDM0 + (2 * difference[oj] @ dobsdx @ Psi ).reshape(1,-1)[0]
             else:
-                #Semaingly correct result but not really: (b = 6x1)
-                # grad = 2 * (dobsdx @ Phi @ b ).reshape(1,-1)[0]
-                #Theoretical result:
-                # print('theoretical implementation')
-                grad = 2 * (np.transpose(dobsdx @ Phi) @ b ).reshape(1,-1)[0]
-                
-                #Correct: (b = 1x6)
-                # b = b.reshape(1,-1)
-                # grad =  2 * (b @ np.transpose(dobsdx @ Phi) ).reshape(1,6)[0]
-                # grad =  2 * (b @ dobsdx @ Phi ).reshape(1,6)[0]
-                
-                
-                #Wrong:
-                # grad = (2 * b@dobsdx@Phi ).reshape(1,-1)[0]
-                # grad = (2 * b@ np.transpose(dobsdx@Phi) ).reshape(1,6)[0]
-        else:
-            grad = (2 * Phi@b ).reshape(1,6)[0]
-        
-        # if t == 0 or t==iterations-1:
-        #     print('gradient:',grad)
-            
+                gradx0 = gradx0 + (2 * difference[oj] @ Phi ).reshape(1,-1)[0]
+                gradDM0 = gradDM0 + (2 * difference[oj] @ Psi ).reshape(1,-1)[0]
         
         
-        # print(Phi)
-        #Phi:
-        # plt.matshow(Phi,cmap='RdYlGn')
+        #Plot of gradient matrices:
+        # print(dobsdx)
+        # plt.matshow(dobsdx,cmap='RdYlGn')
         # ax = plt.gca()
         # plt.colorbar()
         # plt.clim(-1,1)
         # ax.xaxis.set_ticks_position('bottom')
-        # plt.yticks(range(6),['dp','de','di','dOm','dw','df'])
+        # plt.xticks(range(6),['dp','de','di','dOm','dw','df'])
+        # plt.yticks(range(6),['dx','dy','dz','dvx','dvy','dvz'])
         # plt.xticks(range(6),['dp0','de0','di0','dOm0','dw0','df0'])
-        # for (i, j), z in np.ndenumerate(Phi):
+        # for (i, j), z in np.ndenumerate(dobsdx):
         #     if z == 0:
         #         plt.text(j, i, '0', ha='center', va='center')
         #     else:
         #         plt.text(j, i, '{:0.2f}'.format(z), ha='center', va='center')
-        # plt.title("Gradient of orbital elements over initial conditions")
+        # plt.title("Gradient of cartesian over orbital elements")
         # plt.show()
         
         
-        # print(dobsdx@Phi)
-        # dobsdx@Phi:
-        # plt.matshow(dobsdx@Phi,cmap='RdYlGn')
-        # ax = plt.gca()
-        # plt.colorbar()
-        # plt.clim(-1,1)
-        # ax.xaxis.set_ticks_position('bottom')
-        # plt.yticks(range(6),['dp','de','di','dOm','dw','df'])
-        # plt.xticks(range(6),['dp0','de0','di0','dOm0','dw0','df0'])
-        # for (i, j), z in np.ndenumerate(dobsdx@Phi):
-        #     if z == 0:
-        #         plt.text(j, i, '0', ha='center', va='center')
-        #     else:
-        #         plt.text(j, i, '{:0.2f}'.format(z), ha='center', va='center')
-        # plt.title("Gradient of cartesian/orbital @ orbital/initial conditions")
-        # plt.show()
         
-    
+        #Adam optimizer:
+        grad = np.append(gradx0,gradDM0)
         
-            
         m = beta1 * m + (1.0 - beta1) * grad
         v = beta2 * v + (1.0 - beta2) * grad**2
         mhat = m / (1.0 - beta1**(t+1))
         vhat = v / (1.0 - beta2**(t+1))
-        xnew = x0 - alpha * mhat / (np.sqrt(vhat) + eps)
+        xDM_new = np.append(x0,DMm0) - alpha * mhat / (np.sqrt(vhat) + eps)
         
-            
+        # x_new = xDM_new[:6]
+        x_new = x0
+        DM_new = xDM_new[6:]
+        # DM_new = DMm0
+        
+        
+        #Basic gradient descent:
         # delta = - alpha * grad
-        # delta = delta.reshape(1,6)[0]
-        # xnew = x0+delta
+        # delta = delta.reshape(1,-1)[0]
+        # x_new = x0+delta[:6]
+        # DM_new = DMm0 + delta[6:]
+        
+        
+        #DM sometimes becomes negative, don't allow this
+        for i in range(len(DM_new)):
+            if DM_new[i] < 0:
+                DM_new[i] = 0
         
          
-        return ta, xnew, m, v
+        return ta, x_new, DM_new, simulatedlist, m, v
         
     
     
@@ -517,41 +463,73 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
     
     np.set_printoptions(precision=5)
     
-    #Only f is changed from -np.pi to -3.1
-    # ic_guess = [p_mpe, e_mpe, -134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
-    #   66.2689390128 / 180 * np.pi,1.1]
-    ic_guess = np.multiply(IC, len(IC)*[1.01])
-    # print(ic_guess)
         
     #last observation time
     # last_time = 2.032859999999999900e+03
     last_time = 293097.9510676383
     
         
-    #Time of observation = 293097
-    t_obs = last_time
+    #Time of observation
+    # t_obs = last_time
+    # t_obslist = [last_time,last_time*1.1,last_time*1.2]
+    
+    t_obslist =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+    
+    
     
     #Setup for fake reconstruction:
     ta.state[:6] = IC
     ta.time = 0
-    ta.propagate_until(t_obs)
+    ta.pars[:N] = mis
+    ta.pars[N:] = ris
+    # ta.propagate_until(t_obs)
+    out = ta.propagate_grid(t_obslist)
     
-    observation = ta.state[:6].copy()
+    
+    
+    observationlist = np.asarray(out[4][:,[0,1,2,3,4,5]]).copy()
+    # print('obslist:',observationlist)
+    
     
     if CARTESIANOBS:
-        observation = convertToCartesian(observation[0], observation[1], observation[2],\
-                                     observation[3], observation[4], observation[5])
+        observationlist = convertToCartesian(observationlist[:,0], observationlist[:,1], observationlist[:,2],\
+                observationlist[:,3], observationlist[:,4], observationlist[:,5])
+        
+        if OBS3:
+            observationlist = np.array(observationlist)
+            observationlist =  observationlist[[0,1,-1],:].transpose()
+    
+    #[[x1 y1 vz1], [x2 y2 vz2],...[]]
+    # print(observationlist)
+            
+    # observation = ta.state[:6].copy()
+    # if CARTESIANOBS:
+    #     observation = convertToCartesian(observation[0], observation[1], observation[2],\
+    #                                   observation[3], observation[4], observation[5])
+    #     if OBS3:
+    #         observation =  observation[0:2]+(observation[5],)
+    
+    
+    # comparedData = np.loadtxt('1PN.txt')
+    # comparedYs = comparedData[:,1]
+    # comparedXs = comparedData[:,2]
+    # comparedVZs = comparedData[:,3]
+    
+    # timegrid = comparedData[:,0]
+    # #Use an offset so that t=0 corresponds to the first observation
+    # timeoffset = timegrid[0]
+    # timegrid = timegrid - timeoffset
     
     
     
     # initialize first and second moments
-    m = np.array([0.0 for _ in range(len(IC))])
-    v = np.array([0.0 for _ in range(len(IC))])
+    m = np.array([0.0 for _ in range(len(IC)+N)])
+    v = np.array([0.0 for _ in range(len(IC)+N)])
     
     # step size
-    # alpha = 2e-2
-    alpha = 1e-4
+    alpha = 1e-6
     
+    #TODO: tune these
     # factor for average gradient
     beta1 = 0.9
     # factor for average squared gradient
@@ -559,64 +537,169 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
     #Precision
     eps = 1e-8
     
-    ICiterations = np.array([ic_guess])
     
-    iterations =5000
+    #Initial guesses:
+    ic_guess = IC.copy()
+    # ic_guess = [p_mpe, e_mpe, -134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
+    #   66.2689390128 / 180 * np.pi,1.1]
+    # ic_guess = np.multiply(IC, len(IC)*[1.0001])
+    
+    DM_guess = N*[0]
+    
+    ICiterations = np.array([ic_guess])
+    DMiterations = np.array([DM_guess])
+    obsiterations = np.array([])
+    
+    iterations = 1000
+    
     for t in range(iterations):
-        if t % round(iterations/5) == 0 and t != 0: 
+        if t != 0 and iterations > 5 and t % round(iterations/5) == 0: 
             print('Iteration',t,'done')
         
-        ta, ic_guess,m,v = corrector(ta, ic_guess, observation, t_obs, alpha,beta1,beta2,eps,m,v,t)
+        ta, ic_guess,DM_guess,sim,m,v = corrector(ta, ic_guess,DM_guess, ris, observationlist, t_obslist, alpha,beta1,beta2,eps,m,v,t)
+        
         ICiterations = np.append(ICiterations,ic_guess)
+        DMiterations = np.append(DMiterations,DM_guess)
+        obsiterations = np.append(obsiterations,sim)
         
-        
-    ICiterations = ICiterations.reshape((iterations+1,6))    
+    
+    #1 last simulation of the final guess:
+    ta.state[:6] = ic_guess
+    ta.time = 0
+    ta.pars[:N] = DM_guess
+    ta.pars[N:] = ris
+    out = ta.propagate_grid(t_obslist)
+    finalsim = np.asarray(out[4][:,[0,1,2,3,4,5]]).copy()
+    if CARTESIANOBS:
+        finalsim = convertToCartesian(finalsim[:,0], finalsim[:,1], finalsim[:,2],\
+                finalsim[:,3], finalsim[:,4], finalsim[:,5])
+        if OBS3:
+            finalsim = np.array(finalsim)
+            finalsim =  finalsim[[0,1,-1],:].transpose()
+    obsiterations = np.append(obsiterations,finalsim)
+    
+    ICiterations = ICiterations.reshape((iterations+1,6))  
+    DMiterations = DMiterations.reshape((iterations+1,N))  
+    obsiterations = obsiterations.reshape((iterations+1,len(observationlist),len(observationlist[0])))    
+    
     
     print("")
     print('First guess for IC:',ICiterations[0])
-    print('Reconstructed IC:  ',ic_guess)
-    print("True (observation):",np.array(IC))
+    print('Reconstructed IC:  ',np.array(ic_guess))
+    print("True IC:           ",np.array(IC))
+    print("")
+    print('First guess for DM:',DMiterations[0])
+    print('Reconstructed DM:  ',DM_guess)
+    print("True DM:           ",np.array(mis))
+    print("")
+    print('First simulation:',obsiterations[0])
+    print('Last simulation: ',obsiterations[-1])
+    print("True observation:",np.array(observationlist))
     
         
     iters = np.arange(0,iterations+1,1)
     
     
     
-    
-    #Plot convergence:
+    #Plot convergence of initial conditions:
     absdiffs = np.sum(abs(np.subtract(ICiterations,(iterations+1)*[IC])),axis=1)
+    plt.figure()
+    plt.scatter(iters,absdiffs,color='blue',s=8)
+    plt.ylabel("Difference")
+    plt.xlabel("Amount of iterations")
+    plt.title("Difference with true initial conditions")
     
+    
+    #Plot convergence of dark matter:
+    absdiffs = np.sum((np.subtract(DMiterations,(iterations+1)*[mis])),axis=1)
     plt.figure()
     plt.scatter(iters,absdiffs,color='blue',s=8)
     plt.ylabel("Difference with true value")
     plt.xlabel("Amount of iterations")
-    plt.title("Gradient descent for finding initial conditions")
+    plt.title("Difference with true DM distribution")
     
     
+    # absdiffsForF = (np.subtract(ICiterations[:,5],(iterations+1)*[IC[5]]))
+    # plt.figure()
+    # plt.scatter(iters,absdiffsForF,color='blue',s=8)
+    # plt.ylabel("Difference with true value")
+    # plt.xlabel("Amount of iterations")
+    # plt.title("Gradient descent for finding initial f")
     
-    absdiffsForF = (np.subtract(ICiterations[:,5],(iterations+1)*[IC[5]]))
+    
+    #Convergence of observation:
+    # absdiffs = [[difx obs 1, dify obs1, difz obs1] , [difx obs 2, dify obs2, difz obs2] 
+    absdiffs = np.sum(abs(np.subtract(obsiterations,np.array((iterations+1)*[observationlist]))),axis=1)
+    
+    absdiffsTotal = np.sum(absdiffs,axis = 1)
     plt.figure()
-    plt.scatter(iters,absdiffsForF,color='blue',s=8)
-    plt.ylabel("Difference with true value")
+    plt.scatter(iters,absdiffsTotal,color='blue',s=8)
+    plt.ylabel("Difference with observation")
     plt.xlabel("Amount of iterations")
-    plt.title("Gradient descent for finding initial f")
+    plt.title("Gradient descent to match observation")
     
-    
-    absdiffsForp = (np.subtract(ICiterations[:,0],(iterations+1)*[IC[0]]))
-    plt.figure()
-    plt.scatter(iters,absdiffsForp,color='blue',s=8)
-    plt.ylabel("Difference with true value")
-    plt.xlabel("Amount of iterations")
-    plt.title("Gradient descent for finding initial p")
-    
-    
+    if CARTESIANOBS and OBS3:
+        #difference of x,y and vz observation:
+        plt.figure()
+        plt.scatter(t_obslist,AU_to_arcseconds(obsiterations[:][-1][:,0])-AU_to_arcseconds(observationlist[:,0]),color='blue',s=8,label='Difference')
+        plt.plot(t_obslist,len(t_obslist)*[50],'--',label='Precision',color='red')
+        plt.plot(t_obslist,len(t_obslist)*[-50],'--',color='red')
+        plt.ylabel("Difference with observation")
+        plt.xlabel("Time")
+        plt.title("X simulated - X observed")
+        plt.legend()
+        
+        plt.figure()
+        plt.scatter(t_obslist,AU_to_arcseconds(obsiterations[:][-1][:,1])-AU_to_arcseconds(observationlist[:,1]),color='blue',s=8,label='Difference')
+        plt.plot(t_obslist,len(t_obslist)*[50],'--',label='Precision',color='red')
+        plt.plot(t_obslist,len(t_obslist)*[-50],'--',color='red')
+        plt.ylabel("Difference with observation")
+        plt.xlabel("Time")
+        plt.title("Y simulated - Y observed")
+        plt.legend()
+        
+        
+        
+        plt.figure()
+        plt.scatter(t_obslist,obsiterations[:][-1][:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000),color='blue',s=8,label='Difference')
+        plt.plot(t_obslist,len(t_obslist)*[10],'--',label='Precision',color='red')
+        plt.plot(t_obslist,len(t_obslist)*[-10],'--',color='red')
+        plt.ylabel("Difference with observation")
+        plt.xlabel("Time")
+        plt.title("VZ simulated - VZ observed")
+        plt.legend()
     
     
     
     #Returns  observations (AU, meters/second)
-    return mis
+    return DM_guess
+
+ris =  [144.14414414414415, 288.2882882882883, 432.4324324324324, 576.5765765765766, 720.7207207207207, 864.8648648648648, 1009.009009009009, 1153.1531531531532, 1297.2972972972973, 1441.4414414414414, 1585.5855855855855, 1729.7297297297296, 1873.8738738738737, 2018.018018018018, 2162.162162162162, 2306.3063063063064, 2450.4504504504503, 2594.5945945945946, 2738.7387387387384, 2882.8828828828828]
+mis = [8.265361613774615e-07, 5.686349100247396e-06, 1.4927307091440782e-05, 2.7672594520147764e-05, 4.2787249490168856e-05, 5.9043390760264746e-05, 7.527496444156235e-05, 9.049525234007644e-05, 0.00010396460998861513, 0.00011520962910339889, 0.00012400425819432555, 0.0001303272388261693, 0.00013430953743146022, 0.00013618220727268707, 0.00013623112544037478, 0.00013476151923237666, 0.00013207265668939558, 0.00012844157430656538, 0.00012411404664116991, 0.00011930089158700878]
+
+# ris = [400]
+# mis = [1e-2]
+
+# ris = [1]
+# mis=[0]
+
+# reconstructDistribution(True,[1e-3],[400])
+reconmis = reconstructDistribution(True,mis,ris,CARTESIANOBS = True,OBS3 = True)
 
 
 
-reconstructDistribution(False,[0],[1])
+
+rp = 119.52867
+ra = 1948.96214
+
+plt.figure()
+plt.scatter(ris,reconmis,label='Reconstructed')
+plt.scatter(ris,mis,label='Plummer model')
+plt.axvline(-rp,linestyle='--',label='rp and ra',color='black')
+plt.axvline(ra,linestyle='--',color='black')
+plt.xlabel("Distance from MBH [AU]")
+plt.ylabel("Mass [MBH masses]")
+plt.title('Reconstructed dark matter distribution')
+plt.legend()
+
 

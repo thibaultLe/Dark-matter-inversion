@@ -190,7 +190,7 @@ def buildTaylorIntegrator(PNCORR,N,include_variational_eqs=True,LOAD_PICKLE=Fals
     N : int
         Amount of dark matter shells.
     include_variational_eqs : bool, optional
-        True if you want to include variational equations (e.g. to reconstruct IC's and DM distribution). The default is True.
+        True if you want to include variational equations (e.g. to reconstruct IC's and DM distribution). Slows the process down a bit. The default is True.
     LOAD_PICKLE : bool, optional
         True if you want to load a previously saved version of ta. The default is False.
     verbose : bool, optional
@@ -397,4 +397,110 @@ def buildTaylorIntegrator(PNCORR,N,include_variational_eqs=True,LOAD_PICKLE=Fals
         ta_file.close()
         
         return ta
+    
+
+
+def simulateOrbits(PNCORRECTION,IC,mis,ris,t_grid):
+    """
+    
+
+    Parameters
+    ----------
+    PNCORRECTION : boolean
+        True if using the 1PN correction, false if using Kepler mechanics.
+    IC : list of floats
+        Initial conditions of orbital parameters at t=0.
+    mis : list of floats
+        Dark matter shell masses in [MBH masses].
+    ris : list of floats
+        Dark matter shell distances from 0 in [AU].
+    t_grid : list of floats
+        Observation times.
+
+    Raises
+    ------
+    RuntimeError
+        If the length of dark matter masses and distances do not match, an error is raised.
+
+    Returns
+    -------
+    p : list of floats
+        semi-latus rectum.
+    e : list of floats
+        eccentricity.
+    i : list of floats
+        inclination.
+    om : list of floats
+        longitude of ascending node.
+    w : list of floats
+        periapsis.
+    f : list of floats
+        true anomaly.
+
+    """
+    
+    if len(mis) != len(ris):
+        raise RuntimeError("Lengths of DM masses and distances does not match")
+        
+    N = len(mis)
+    
+    ta = buildTaylorIntegrator(PNCORRECTION, N, include_variational_eqs=False)
+    
+    #Setup for fake reconstruction:
+    ta.state[:6] = IC
+    ta.pars[:N] = mis
+    ta.pars[N:] = ris
+    ta.time = 0
+    
+    out = ta.propagate_grid(t_grid)
+    
+    #Convert to numpy arrays for plotting in 3D with x,y,z
+    p  = np.asarray(out[4][:, 0])
+    e  = np.asarray(out[4][:, 1])
+    i  = np.asarray(out[4][:, 2])
+    om = np.asarray(out[4][:, 3])
+    w  = np.asarray(out[4][:, 4])
+    f  = np.asarray(out[4][:, 5])
+    
+    return p,e,i,om,w,f
+
+
+def simulateOrbitsCartesian(PNCORRECTION,IC,mis,ris,t_grid):
+    """
+
+    Parameters
+    ----------
+    PNCORRECTION : boolean
+        True if using the 1PN correction, false if using Kepler mechanics.
+    IC : list of floats
+        Initial conditions of orbital parameters at t=0.
+    mis : list of floats
+        Dark matter shell masses in [MBH masses].
+    ris : list of floats
+        Dark matter shell distances from 0 in [AU].
+    t_grid : list of floats
+        Observation times.
+
+    Returns
+    -------
+    rx : list of floats
+        radial x value in [AU]. Multiply by D_0 to get metric m
+    ry : list of floats
+        radial y value in [AU]. Multiply by D_0 to get metric m
+    rz : list of floats
+        radial z value in [AU]. Multiply by D_0 to get metric m
+    vx : list of floats
+        vx value in [m/s]. 
+    vy : list of floats
+        vy value in [m/s]. 
+    vz : list of floats
+        vz value in [m/s]. 
+
+    """
+    p,e,i,om,w,f = simulateOrbits(PNCORRECTION, IC, mis, ris, t_grid)
+    rx,ry,rz,vx,vy,vz = convertToCartesian(p, e, i, om, w, f)
+    M_0, D_0, T_0 = getBaseUnitConversions()
+    
+    #Returns  observations (AU, meters/second)
+    return rx,ry,rz, vx * D_0 / T_0, vy * D_0 / T_0, vz * D_0 / T_0
     

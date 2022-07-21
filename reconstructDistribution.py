@@ -48,7 +48,11 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
     N = len(mis)
     
     ta = orbitModule.buildTaylorIntegrator(PNCORRECTION, N)
+    
+    start = time.time()
     derobsdx = orbitModule.cartesianConversionGradient()
+    print("--- %s seconds --- to build the gradient" % (time.time() - start))
+    
     
     
     def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t):
@@ -73,10 +77,6 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
         x0_new
             The corrected initial conditions (p,e,i,om,w,f).
 
-        """
-        
-        
-        """
         Performs and logs a step of a corrector algorithm that takes a numerical integration from x0 -> T -> xf. The result
         is a new tentative x0 that should result in a closer observation
         """
@@ -233,6 +233,8 @@ def reconstructDistribution(PNCORRECTION,mis,ris, CARTESIANOBS = True,OBS3 = Tru
     ta.pars[:N] = mis
     ta.pars[N:] = ris
     out = ta.propagate_grid(t_obslist)
+    
+    
     
     
     

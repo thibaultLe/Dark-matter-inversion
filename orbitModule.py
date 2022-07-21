@@ -14,6 +14,18 @@ import pickle
 
 
 def getBaseUnitConversions():
+    """
+
+    Returns
+    -------
+    M_0 : float
+        Mass in kg.
+    D_0 : float
+        Distance in meters.
+    T_0 : float
+        Time in seconds.
+
+    """
     #Gravitational constant
     G_orig = 6.67430 * 10**(-11)
     #Solar mass
@@ -106,16 +118,79 @@ def convertToCartesian(p,e,i,om,w,f):
     return rx,ry,rz,vx,vy,vz
 
 
-def buildTaylorIntegrator(PNCORR,N,LOAD_PICKLE=False,verbose=False):
+def cartesianConversionGradient(): 
+    """
+    
+    Returns
+    -------
+    derobsdx : list of hy.expression
+        List of derivatives of cartesian observation wrt orbital parameters.
+
+    """
+    
+    # Create the symbolic variables.
+    p, e, i, om, w, f = hy.make_vars("p", "e", "i", "om", "w", "f")
+    x    = np.array([p,e,i,om,w,f])
+    
+    """
+    Cartesian position and velocity conversion
+    """
+    r = p / (1 + e * hy.cos(f))
+    
+    rx = r * (hy.cos(om) * hy.cos(w + f) - hy.cos(i)*hy.sin(om)*hy.sin(w+f))
+    ry = r * (hy.sin(om) * hy.cos(w + f) + hy.cos(i)*hy.cos(om)*hy.sin(w+f))
+    rz = r * hy.sin(i) * hy.sin(w + f)
+    
+    vx = -hy.sqrt(1/p) * (hy.cos(om) * (hy.sin(w+f) + e * hy.sin(w)) + \
+              hy.cos(i) * hy.sin(om) * (hy.cos(w+f) + e * hy.cos(w)))
+    vy = -hy.sqrt(1/p) * (hy.sin(om) * (hy.sin(w+f) + e * hy.sin(w)) - \
+              hy.cos(i) * hy.cos(om) * (hy.cos(w+f) + e * hy.cos(w)))
+    vz = hy.sqrt(1/p) * hy.sin(i) * (hy.cos(w+f) + e * hy.cos(w))
+
+    cart = np.array([rx,ry,rz,vx,vy,vz])
+    
+    #Derivative of cartesian observation wrt orbital parameters
+    derobsdx = []
+    #rows
+    for i in range(6):
+        #columns
+        for j in range(6):
+            derobsdx.append(hy.diff(cart[i],x[j]))
+            
+    return derobsdx
+    
+def variationalEqsInitialConditions(N):
     """
     
 
+    Parameters
+    ----------
+    N : int
+        Amount of dark matter shells.
+
+    Returns
+    -------
+    list of ints
+        The initial conditions for the variational equations.
+
+    """
+    ic_var_phi = np.eye(6).reshape((36,)).tolist()
+    ic_var_psi = np.zeros((6*N,)).tolist()
+    
+    return ic_var_phi + ic_var_psi
+
+
+def buildTaylorIntegrator(PNCORR,N,include_variational_eqs=True,LOAD_PICKLE=False,verbose=False):
+    """
+    
     Parameters
     ----------
     PNCORR : boolean
         True if using the 1PN correction, false if using Kepler mechanics.
     N : int
         Amount of dark matter shells.
+    include_variational_eqs : bool, optional
+        True if you want to include variational equations (e.g. to reconstruct IC's and DM distribution). The default is True.
     LOAD_PICKLE : bool, optional
         True if you want to load a previously saved version of ta. The default is False.
     verbose : bool, optional
@@ -125,7 +200,7 @@ def buildTaylorIntegrator(PNCORR,N,LOAD_PICKLE=False,verbose=False):
     -------
     ta : heyoka.core._taylor_adaptive_dbl
         The heyoka taylor integrator.
-
+    
     """
     
     
@@ -140,8 +215,6 @@ def buildTaylorIntegrator(PNCORR,N,LOAD_PICKLE=False,verbose=False):
         return ta
     
     else:
-        
-        
         # Create the symbolic variables.
         p, e, i, om, w, f = hy.make_vars("p", "e", "i", "om", "w", "f")
         
@@ -170,7 +243,7 @@ def buildTaylorIntegrator(PNCORR,N,LOAD_PICKLE=False,verbose=False):
         #Speed of light (in m/s, then converted) ~= 4.85 AU / 40 minutes
         c = 299792458 * T_0 / D_0
         #Constant that dictates steepness of sigmoid
-        k = 0.01
+        k = 0.1
         
         
         
@@ -252,6 +325,57 @@ def buildTaylorIntegrator(PNCORR,N,LOAD_PICKLE=False,verbose=False):
                 pGM * (1/e) * (R * hy.cos(f) -  S * (1. + (1/ecf1) ) * hy.sin(f))
         
         
+        x    = np.array([p,e,i,om,w,f])
+        func = np.array([dpdt,dedt,didt,domdt,dwdt,dfdt])
+        
+        dyn = []
+        for state, rhs in zip(x,func):
+            dyn.append((state, rhs))
+            
+        """
+        Variational equations
+        """
+        if include_variational_eqs:
+            #Phi:
+            symbols_phi = []
+            for i in range(6):
+                for j in range(6):
+                    symbols_phi.append("phi_"+str(i)+str(j))  
+            phi = np.array(hy.make_vars(*symbols_phi)).reshape((6,6))
+            
+            dfdx = []
+            for i in range(6):
+                for j in range(6):
+                    dfdx.append(hy.diff(func[i],x[j]))
+            dfdx = np.array(dfdx).reshape((6,6))
+            
+            dphidt = dfdx@phi
+            
+            #Psi:
+            symbols_psi = []
+            for i in range(N):
+                for j in range(6):
+                    symbols_psi.append("psi_"+str(i)+str(j))  
+            psi = np.array(hy.make_vars(*symbols_psi)).reshape((6,N))
+            
+            dpsidt = []
+            for i in range(6):
+                for j in range(N):
+                    dpsidt.append(hy.diff(func[i],hy.par[j]))
+            dpsidt = np.array(dpsidt).reshape((6,N))
+            
+            #Phi
+            for state, rhs in zip(phi.reshape((36,)),dphidt.reshape((36,))):
+                dyn.append((state, rhs))
+            #Psi
+            for state, rhs in zip(psi.reshape((6*N,)),dpsidt.reshape((6*N,))):
+                dyn.append((state, rhs))
+            # Initial conditions on the variational equations
+            ic_var_phi = np.eye(6).reshape((36,)).tolist()
+            ic_var_psi = np.zeros((6*N,)).tolist()
+            
+            IC = IC + ic_var_phi + ic_var_psi
+            
         """
         Instantiate the Taylor integrator
         """
@@ -259,7 +383,7 @@ def buildTaylorIntegrator(PNCORR,N,LOAD_PICKLE=False,verbose=False):
         start_time = time.time()
         ta = hy.taylor_adaptive(
             # The ODEs.
-            [(p, dpdt), (e, dedt), (i, didt), (om, domdt), (w, dwdt), (f, dfdt)],
+            dyn,
             # The initial conditions 
             IC,
             compact_mode = True
@@ -272,7 +396,5 @@ def buildTaylorIntegrator(PNCORR,N,LOAD_PICKLE=False,verbose=False):
         pickle.dump(ta,ta_file)
         ta_file.close()
         
-        
         return ta
     
-

@@ -27,25 +27,13 @@ if __name__ == "__main__":
 
     M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
     
-    # #alpha in arcseconds
-    alpha_mpe = 0.1249527719 
-    #R in parsec
-    R_mpe = 8277.09055007
-    e_mpe = 0.884429099282  
-    a_mpe = 2 * R_mpe * np.tan(alpha_mpe * np.pi / (2*648000)) * 3.08567758149e+16 / D_0
-    p_mpe = a_mpe * (1-e_mpe**2) 
-    # T_period = np.sqrt(a_mpe**3)*2*np.pi
-    # T_0mpe =  2010.3561125977762 * 365.25 * 24 * 60**2 /T_0
     
-    #Initial conditions:
-    IC= [p_mpe, e_mpe, -134.700204975 / 180 * np.pi, 228.191510132 / 180 * np.pi, \
-      66.2689390128 / 180 * np.pi, 1]
+    IC = orbitModule.get_S2_IC()
         
         
     #Time grid:
     t_grid =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
     
-        
     
     rx,ry,rz,vx,vy,vz= orbitModule.simulateOrbitsCartesian(False, IC, mis, ris, t_grid)
     

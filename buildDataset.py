@@ -7,21 +7,18 @@ Created on Wed Jul 13 14:56:35 2022
 
 import numpy as np
 from matplotlib.pylab import plt
-from simulateOrbits import simulateOrbits
+import orbitModule
 
-#1AU in meters
-D_0 = 149597870700
-#Solar mass
-M_sol = 1.98841 * 10**30 
-# mass m' = m/M_0 -> MBH = 1
-M_0 = 4.2970174 * 10**6 * M_sol
+
+M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
 
 def enclosedMass(a,rho0):
     return (4 * a**3 * np.pi * r0**3 * rho0) / ( 3 * (a**2 + r0**2)**(3/2))
 
 
-comparedData = np.loadtxt('Kepler.txt')
-timegrid = comparedData[:,0]
+IC = orbitModule.get_S2_IC()
+t_grid =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+    
 
 #Dark matter:
 #Amount of mascons:
@@ -78,7 +75,7 @@ plt.legend()
 
 #TODO: sinusoidal, uniform, etc distributions
 
-[rxDM,ryDM,rzDM] , [vxDM,vyDM,vzDM],f = simulateOrbits(True, mis, ris)
+[rxDM,ryDM,rzDM] , [vxDM,vyDM,vzDM] = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, t_grid)
 
 
 #Plot position and MBH

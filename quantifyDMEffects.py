@@ -10,16 +10,36 @@ from matplotlib.pylab import plt
 import orbitModule
 
 
-def enclosedMass(a,rho0):
+
+def enclosedMassPlum(a,rho0):
+    r0 = 2474.01
     return (4 * a**3 * np.pi * r0**3 * rho0) / ( 3 * (a**2 + r0**2)**(3/2))
 
+def enclosedMassCusp(a,rho0):
+    r0 = 2474.01
+    return (4 * a**3 * np.pi * (a/r0)**(-7/4) * rho0) / (3 - (7/4))
 
 
-def plotMasconsMass(N=20,k=0.1):
+def plotMasconsMass(N=20,k=0.1,PLUM=True):
+    #Bahcall-Wolf cusp model:
+    rDM = np.linspace(0,xlim,n)
+    
+    rho0plum = 1.69*10**(-10) * (D_0**3) / M_0
+    rho0cusp = 2.24*10**(-11) * (D_0**3) / M_0
+    
+    # #Plummer model:
+    # rhoPlum = rho0plum *( 1. + ((rDM**2) / (r0**2)))**(-5/2)
+    # #Cusp model:
+    # rhoCusp = rho0cusp * (rDM / r0)**(-7/4)
+    
     rp = 119.52867
     ra = 1948.96214
     
-    mis, ris = orbitModule.get_Plummer_DM(N, xlim)
+    if PLUM:
+        mis, ris = orbitModule.get_Plummer_DM(N, xlim)
+    else:
+        mis, ris = orbitModule.get_BahcallWolf_DM(N, xlim)
+    
     
     # Mascon model (mi, ri), sigmoid approximation of step function
     listOfSigs = [0.5 + 0.5 * np.tanh( k * (rDM - ris[i])) for i in range(N)]
@@ -37,26 +57,31 @@ def plotMasconsMass(N=20,k=0.1):
     #Plot enclosed mass
     plt.figure()
     plt.xlabel('Distance from MBH [AU]')
-    plt.plot(rDM,enclosedMass(rDM,rho0plum),label='Plum model')
-    plt.plot(rDM,sumRis,label='Sum of mass sigmoids')
+    if PLUM:
+        plt.plot(rDM,enclosedMassPlum(rDM,rho0plum),label='Plum model')
+    else:
+        plt.plot(rDM,np.append(0,enclosedMassCusp(rDM[1:],rho0cusp)),label='Bahcall-wolf model')
+    
+    plt.plot(rDM,sumRis,label='Sum of sigmoids')
     plt.ylabel('enclosed mass [MBH masses]')
-    plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    plt.axvline(-rp,linestyle='--',label='rp and ra',color='black')
     plt.axvline(ra,linestyle='--',color='black')
-    plt.scatter(ris,np.cumsum(mis),label='Mascon enclosed mass',color='orange')
-    plt.bar(ris,np.cumsum(mis),width=(xlim)/(N),alpha=0.2,align='edge',edgecolor='orange',color='orange')
+    # plt.scatter(ris,np.cumsum(mis),label='Mascon shells',color='orange')
+    # plt.bar(ris,np.cumsum(mis),width=(xlim)/(N),alpha=0.2,align='edge',edgecolor='orange',color='orange')
     plt.legend()
-    plt.title('Enclosed mass')
+    # plt.title('Enclosed mass')
     
     
     #Plot mass of mascons
     plt.figure()
-    plt.scatter(ris,mis,label='mascons',color='orange')
-    plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    plt.scatter(ris,mis,label='Mascon shell masses',color='orange')
+    plt.axvline(-rp,linestyle='--',label='rp and ra',color='black')
     plt.axvline(ra,linestyle='--',color='black')
-    plt.ylabel('Mass [MBH masses]',color='orange')
+    plt.ylabel('Mass [MBH masses]')
     plt.xlabel('Distance from MBH [AU]')
     plt.legend()
-    plt.title('Masses of DM shells')
+    # plt.title('Masses of DM shells')
+    
     
     #Plot theoretical plum model in kg/m^3 and mpc
     # rDMmpc = rDM*0.004848
@@ -291,23 +316,15 @@ M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
 xlim = 3000
 #Amount of points in linspace
 n = 1000
-#Bahcall-Wolf cusp model:
-rDM = np.linspace(0,xlim,n)
-
-rho0plum = 1.69*10**(-10) * (D_0**3) / M_0
-# rho0cusp = 2.24*10**(-11) * (D_0**3) / M_0
-r0 = 2474.01
-
-#Plummer model:
-rhoPlum = rho0plum *( 1. + ((rDM**2) / (r0**2)))**(-5/2)
-#Cusp model:
-# rhoCusp = rho0cusp * (rDM / r0)**(-7/4)
 
 """
 #Uncomment functions here to use them:
 """
 # plotMasconsMass(N=5,k=0.1)
-# plotMasconsMass(N=100,k=0.1)
+# plotMasconsMass(N=10,k=0.005)
+# plotMasconsMass(N=30,k=0.01,PLUM=True)
+# plotMasconsMass(N=30,k=0.01,PLUM=False)
+
 # effectOfIndividualMascons()
-# plotDifferenceWIth1PN()
+plotDifferenceWIth1PN()
 # effectOfAmountOfMascons(N1=1,N2=100)

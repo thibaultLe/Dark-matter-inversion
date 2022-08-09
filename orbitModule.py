@@ -10,6 +10,9 @@ import heyoka as hy
 import numpy as np
 import time
 import pickle
+from matplotlib.pylab import plt
+
+from functools import lru_cache
 
 
 
@@ -65,6 +68,31 @@ def convertYearsTimegridToOurFormat(timegrid):
     
     return timegrid
 
+def convertXYVZtoArcsec(rx,ry,vz):
+    """
+    Converts our format to [arcsec, arcsec]
+
+    Parameters
+    ----------
+    rx : TYPE
+        DESCRIPTION.
+    ry : TYPE
+        DESCRIPTION.
+    vz : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+    TYPE
+        DESCRIPTION.
+    TYPE
+        DESCRIPTION.
+
+    """
+    return AU_to_arcseconds(rx), AU_to_arcseconds(ry), vz/1000
+
 def get_S2_IC():
     """
     Returns the initial conditions for S2 at t0 = 2010.3561125977762.
@@ -107,8 +135,8 @@ def get_S2_IC():
     # T_0mpe =  2010.3561125977762 * 365.25 * 24 * 60**2 /T_0
     
     #Initial conditions:
-    IC= [p_mpe, e_mpe, i_mpe / 180 * np.pi, om_mpe / 180 * np.pi, \
-      w_mpe / 180 * np.pi, f_mpe]
+    IC= [p_mpe, e_mpe, i_mpe / 180 * np.pi, \
+         om_mpe / 180 * np.pi, w_mpe / 180 * np.pi, f_mpe]
         
     return IC
 
@@ -132,22 +160,92 @@ def get_Plummer_DM(N,xlim):
 
     """
     
-    def enclosedMass(a,rho0):
+    M_0, D_0, T_0 = getBaseUnitConversions()
+    rho0plum = 1.69*10**(-10) * (D_0**3) / M_0
+    
+    return get_PlummerOrBahcall_DM(N, xlim, rho0plum, True)
+
+def get_BahcallWolf_DM(N,xlim):
+    """
+    Returns the BahcallWolf-cusp Dark matter model, discretised in mascons
+
+    Parameters
+    ----------
+    N : int
+        Amount of mascon shells.
+    xlim : float
+        Maximum distance of shells from 0.
+
+    Returns
+    -------
+    mis : list of floats
+        Dark matter masses.
+    ris : list of floats
+        Dark matter distances.
+
+    """
+    
+    M_0, D_0, T_0 = getBaseUnitConversions()
+    rho0cusp = 2.24*10**(-11) * (D_0**3) / M_0
+    
+    return get_PlummerOrBahcall_DM(N, xlim, rho0cusp, False)
+
+
+def get_PlummerOrBahcall_DM(N,xlim,rho0,PLUM=True):
+    """
+    Returns the Plummer Dark matter model, discretised in mascons
+
+    Parameters
+    ----------
+    N : int
+        Amount of mascon shells.
+    xlim : float
+        Maximum distance of shells from 0.
+    rho0 : float
+        Density parameter
+    PLUM : boolean
+        True if using the plummer model, false if using bahcall-wolf
+
+    Returns
+    -------
+    mis : list of floats
+        Dark matter masses.
+    ris : list of floats
+        Dark matter distances.
+
+    """
+    
+    def enclosedMassPlum(a,rho0):
         return (4 * a**3 * np.pi * r0**3 * rho0) / ( 3 * (a**2 + r0**2)**(3/2))
+    
+    def enclosedMassCusp(a,rho0):
+        return (4 * a**3 * np.pi * (a/r0)**(-7/4) * rho0) / (3 - (7/4))
     
     M_0, D_0, T_0 = getBaseUnitConversions()
     
-    rho0plum = 1.69*10**(-10) * (D_0**3) / M_0
-    # rho0cusp = 2.24*10**(-11) * (D_0**3) / M_0
     r0 = 2474.01
     
-    x_right = np.linspace(0,xlim,N+1) # ri's of mascon shells
-    ris = x_right[1:]
-    y_right = enclosedMass(x_right,rho0plum) # enclosed mi's of mascon shells
-    #mascon masses = difference in enclosed mass:
-    mis = [t - s for s, t in zip(y_right, y_right[1:])]
+    x_mid = np.linspace(0,xlim,2*(N+1)+1) # Midpoints
+    ris = x_mid[1::2]
     
-    return mis, ris
+    if PLUM:
+        y_mid = np.append(0,enclosedMassPlum(ris,rho0))
+    else:
+        y_mid = np.append(0,enclosedMassCusp(ris,rho0))
+    
+    mis = [t - s for s, t in zip(y_mid, y_mid[1:])]
+    
+    #Convert to a 'middle riemann sum'
+    mis = mis[1:]
+    newris = []
+    for i in range(len(ris)-1):
+        newris.append((ris[i]+ris[i+1])/2)
+    
+    
+    #Divides [0,xlim] in N+1 parts and takes the borders
+    #   e.g. [0,3000] -> ris = [750,1500,2250]
+    
+    return mis, newris
 
 def AU_to_arcseconds(dist):
     """
@@ -225,6 +323,7 @@ def convertToCartesian(p,e,i,om,w,f):
     return rx,ry,rz,vx,vy,vz
 
 
+@lru_cache(maxsize=1) #Cached for quick retrieval in the gradient descent
 def cartesianConversionGradient(): 
     """
     
@@ -625,7 +724,7 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
     DMm0 : list of floats
         initial dark matter mass guess (m1,m2,...,mN).
     obs : list of list of floats
-        observation at time tj of (p,e,i,om,w,f)
+        observation at time tj of (p,e,i,om,w,f) or (x,y,z,vx,vy,vz)
     t_obs : list of floats
         observation times tj
     alpha : float
@@ -677,9 +776,12 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
         OBS3 = True
     
     
+    
     #Reset the state
     ta.state[:] = np.append(x0,np.array(variationalEqsInitialConditions(N)))
     ta.pars[:N] = DMm0
+    ##TODO: better way of getting ris
+    _, ta.pars[N:] = get_BahcallWolf_DM(N, xlim=3000)
     ta.time = 0
     #Simulate ta from initial guess (t=0) until t_obs
     out = ta.propagate_grid(t_obs)
@@ -688,15 +790,15 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
     
     simulatedlist = orbparamvalues.copy()
     
-    
     if CARTESIANOBS:
         simulatedlist = convertToCartesian(simulatedlist[:,0], simulatedlist[:,1], simulatedlist[:,2],\
                 simulatedlist[:,3], simulatedlist[:,4], simulatedlist[:,5])
         
         if OBS3:
             simulatedlist = np.array(simulatedlist)
-            simulatedlist =  simulatedlist[[0,1,-1],:].transpose()
+            simulatedlist =  simulatedlist[[0,1,-1],:]
     
+        simulatedlist = np.transpose(simulatedlist)
     
     #Take difference of observation with simulation from initial guess
     difference = np.subtract(simulatedlist, obs)
@@ -784,5 +886,226 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
     
      
     return ta, x_new, DM_new, simulatedlist, m, v
+
+
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
+
+
+def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS3 = True):
+    """
+    
+
+    Parameters
+    ----------
+    obslist : list of list of floats
+        the observations [[t0, y0, x0, vz0], ...]
+    ic_guess : list of floats
+        the initial guess for the initial conditions
+    dm_guess : list of floats
+        the initial guess for the dark matter masses
+    CARTESIANOBS : boolean, optional
+        True if using cartesian observations instead of orbital parameter observations. The default is True.
+    OBS3 : boolean, optional
+        True if only using 3 observed parameters (first, second and last = x,y and vz for cartesian). The default is True.
+
+    Raises
+    ------
+    RuntimeError
+        If the length of dark matter masses and distances do not match, an error is raised.
+
+    Returns
+    -------
+    list of floats
+        list of reconstructed dark matter masses.
+
+    Reconstructs dark matter distribution starting from an initial guess
+    """
+    
+    N = len(dm_guess)
+    
+    
+    timegrid = obslist[:,0]
+    
+    #TODO: allow 6 observations
+    observationlist = obslist[:,[1,2,3]]
+    
+
+    t_grid = convertYearsTimegridToOurFormat(timegrid)
+
+    
+    # initialize first and second moments
+    m = np.array([0.0 for _ in range(6+N)])
+    v = np.array([0.0 for _ in range(6+N)])
+    
+    # step size
+    alpha = 1e-5
+    
+    # factor for average gradient
+    beta1 = 0.9
+    # factor for average squared gradient
+    beta2 = 0.999
+    #Precision
+    eps = 1e-8
+    
+    
+    iterations = 500
+    
+    ICiterations = np.array([ic_guess])
+    DMiterations = np.array([dm_guess])
+    obsiterations = np.array([])
+    
+    
+    ta = buildTaylorIntegrator(True, N)
+    
+    
+    #Print progress of the iterations
+    printProgressBar(0, iterations, prefix = 'Progress:', suffix = 'Complete', length = 50)
+    start = time.time()
+    
+    for t in range(iterations):
+        if t != 0 and iterations > 5 and (t+1) % round(iterations/10) == 0: 
+            # print('Iteration',t,'done')
+            pointsPerSecond = round(t/(time.time()-start),2)
+            minsRemaining = round((iterations - t) / (pointsPerSecond*60),2)
+            printProgressBar(t+1, iterations, prefix = 'Iterating:', \
+                             suffix = 'Complete,{} mins remaining, {} iterations/s'.format(minsRemaining,pointsPerSecond), length = 30)
+                        
+        
+        # ta, ic_guess,DM_guess,sim,m,v = orbitModule.corrector(ta, ic_guess,DM_guess, \
+        #       observationlist, t_obslist, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS)
+        
+        #Don't allow initial conditions to change:
+        ta, _ ,dm_guess,sim,m,v = corrector(ta, ic_guess,dm_guess, \
+              observationlist, t_grid, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS)
+        
+        ICiterations = np.append(ICiterations,ic_guess)
+        DMiterations = np.append(DMiterations,dm_guess)
+        obsiterations = np.append(obsiterations,sim)
+        
+    
+    #1 last simulation of the final guess:
+    ta.state[:6] = ic_guess
+    ta.time = 0
+    ta.pars[:N] = dm_guess
+    out = ta.propagate_grid(t_grid)
+    finalsim = np.asarray(out[4][:,[0,1,2,3,4,5]]).copy()
+    if CARTESIANOBS:
+        finalsim = convertToCartesian(finalsim[:,0], finalsim[:,1], finalsim[:,2],\
+                finalsim[:,3], finalsim[:,4], finalsim[:,5])
+        if OBS3:
+            finalsim = np.array(finalsim)
+            finalsim =  finalsim[[0,1,-1],:]
+        finalsim = np.transpose(finalsim)
+    obsiterations = np.append(obsiterations,finalsim)
+    
+    #Reshape
+    ICiterations = ICiterations.reshape((iterations+1,6))  
+    DMiterations = DMiterations.reshape((iterations+1,N))  
+    obsiterations = obsiterations.reshape((iterations+1,len(observationlist),len(observationlist[0])))    
+    
+    
+    print("")
+    print('First guess for IC:',ICiterations[0])
+    print('Reconstructed IC:  ',np.array(ic_guess))
+    print("")
+    print('First guess for DM:',DMiterations[0])
+    print('Reconstructed DM:  ',list(dm_guess))
+    print("")
+    
+        
+    iters = np.arange(0,iterations+1,1)
+    
+    
+    #Plot convergence of initial conditions:
+    # absdiffs = np.sum(abs(np.subtract(ICiterations,(iterations+1)*[IC])),axis=1)
+    # plt.figure()
+    # plt.scatter(iters,absdiffs,color='blue',s=8)
+    # plt.ylabel("Difference")
+    # plt.xlabel("Amount of iterations")
+    # plt.title("Difference with true initial conditions")
+    
+    
+    #Plot convergence of dark matter:
+    # absdiffs = np.sum((np.subtract(DMiterations,(iterations+1)*[mis])),axis=1)
+    # plt.figure()
+    # plt.scatter(iters,absdiffs,color='blue',s=8)
+    # plt.ylabel("Difference with true value")
+    # plt.xlabel("Amount of iterations")
+    # plt.title("Difference with true DM distribution")
+    
+    
+    # absdiffsForF = (np.subtract(ICiterations[:,5],(iterations+1)*[IC[5]]))
+    # plt.figure()
+    # plt.scatter(iters,absdiffsForF,color='blue',s=8)
+    # plt.ylabel("Difference with true value")
+    # plt.xlabel("Amount of iterations")
+    # plt.title("Gradient descent for finding initial f")
+    
+    
+    #Convergence of observation:
+    # absdiffs = [[difx obs 1, dify obs1, difz obs1] , [difx obs 2, dify obs2, difz obs2] 
+    absdiffs = np.sum(abs(np.subtract(obsiterations,np.array((iterations+1)*[observationlist]))),axis=1)
+    absdiffsTotal = np.sum(absdiffs,axis = 1)
+    plt.figure()
+    plt.scatter(iters,absdiffsTotal,color='blue',s=8)
+    plt.ylabel("Difference with observation")
+    plt.xlabel("Amount of iterations")
+    plt.title("Gradient descent to match observation")
+    
+    if CARTESIANOBS:
+        M_0, D_0, T_0 = getBaseUnitConversions()
+        #difference of x,y and vz observation:
+        plt.figure()
+        plt.scatter(timegrid,1e6*(AU_to_arcseconds(obsiterations[:][0][:,0])-AU_to_arcseconds(observationlist[:,0])),color='lightgrey',s=8,label='Initial difference')
+        plt.scatter(timegrid,1e6*(AU_to_arcseconds(obsiterations[:][-1][:,0])-AU_to_arcseconds(observationlist[:,0])),color='blue',s=8,label='Difference')
+        plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+        plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+        plt.ylabel("Difference with observation")
+        plt.xlabel("Time")
+        plt.title("X simulated - X observed")
+        plt.legend()
+        
+        plt.figure()
+        plt.scatter(timegrid,1e6*(AU_to_arcseconds(obsiterations[:][0][:,1])-AU_to_arcseconds(observationlist[:,1])),color='lightgrey',s=8,label='Initial difference')
+        plt.scatter(timegrid,1e6*(AU_to_arcseconds(obsiterations[:][-1][:,1])-AU_to_arcseconds(observationlist[:,1])),color='blue',s=8,label='Difference')
+        plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+        plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+        plt.ylabel("Difference with observation")
+        plt.xlabel("Time")
+        plt.title("Y simulated - Y observed")
+        plt.legend()
+        
+        plt.figure()
+        plt.scatter(timegrid,obsiterations[:][0][:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000),color='lightgrey',s=8,label='Initial difference')
+        plt.scatter(timegrid,obsiterations[:][-1][:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000),color='blue',s=8,label='Reconstructed difference')
+        plt.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
+        plt.plot(timegrid,len(timegrid)*[-10],'--',color='red')
+        plt.ylabel("Difference with observation")
+        plt.xlabel("Time")
+        plt.title("VZ simulated - VZ observed")
+        plt.legend()
+    
+    
+    
+    return ic_guess, dm_guess
     
     

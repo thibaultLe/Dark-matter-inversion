@@ -37,6 +37,7 @@ xlim = 3000
 mis,ris = orbitModule.get_Plummer_DM(N, xlim)
 
 rx,ry,rz,vx,vy,vz = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, t_grid)
+# Units of distance: [AU], units of speed: [m/s]
 rx, ry, vz = orbitModule.convertXYVZtoArcsec(rx, ry, vz)
 
 #format: [[t0, y0, x0, vz0],

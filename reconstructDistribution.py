@@ -63,6 +63,7 @@ def reconstructDistribution(PNCORRECTION,mis,ris, ic_guess, dm_guess, CARTESIANO
     # t_obslist = [last_time,last_time*1.1,last_time*1.2]
     
     t_obslist =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+    # t_obslist = np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 
     
         
     IC = orbitModule.get_S2_IC()
@@ -96,7 +97,7 @@ def reconstructDistribution(PNCORRECTION,mis,ris, ic_guess, dm_guess, CARTESIANO
     observationlist = np.column_stack((timegrid, observationlist))
     
     #observationlist =[[t1 x1 y1 ... vz1], [t2 x2 y2 ... vz2],...[]]
-    return orbitModule.reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS)
+    return orbitModule.reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS,OBS3)
     
     
     
@@ -105,12 +106,16 @@ def reconstructDistribution(PNCORRECTION,mis,ris, ic_guess, dm_guess, CARTESIANO
 #20 mascons plummer
 mis, ris = orbitModule.get_Plummer_DM(20,3000)
 
+mis = 1*np.array(mis)
 
-ic_guess = orbitModule.get_S2_IC()
-# ic_guess = np.multiply(IC, len(IC)*[1.0001])
+IC = orbitModule.get_S2_IC()
+ic_guess = IC
+# ic_guess = np.multiply(IC, len(IC)*[1.000001])
 
-dm_guess = len(mis)*[0]
-# dm_guess = 0.95*np.array(mis)
+# dm_guess = len(mis)*[0]
+# dm_guess = len(mis)*[0.00008]
+# dm_guess = mis
+dm_guess = 1.001*np.array(mis)
 
 reconic, reconmis = reconstructDistribution(True,mis,ris,ic_guess,dm_guess, \
                                    CARTESIANOBS = True,OBS3 = True)
@@ -205,7 +210,7 @@ plt.title('Enclosed mass')
 plt.figure()
 plt.xlabel('Distance from MBH [AU]')
 plt.ylabel('Enclosed mass [MBH masses]')
-plt.plot(rDM,sumRisTrue-sumRis,label='True - Reconstructed')
+plt.plot(rDM,sumRis - sumRisTrue,label='Reconstructed - True')
 plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
 plt.axvline(ra,linestyle='--',color='black')
 # plt.scatter(ris,np.cumsum(reconmis),label='Mascon enclosed mass',color='orange')

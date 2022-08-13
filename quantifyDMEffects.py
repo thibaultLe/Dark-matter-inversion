@@ -322,9 +322,9 @@ n = 1000
 """
 # plotMasconsMass(N=5,k=0.1)
 # plotMasconsMass(N=10,k=0.005)
-# plotMasconsMass(N=30,k=0.01,PLUM=True)
-# plotMasconsMass(N=30,k=0.01,PLUM=False)
+plotMasconsMass(N=20,k=0.01,PLUM=True)
+plotMasconsMass(N=30,k=0.01,PLUM=False)
 
 # effectOfIndividualMascons()
-plotDifferenceWIth1PN()
+# plotDifferenceWIth1PN()
 # effectOfAmountOfMascons(N1=1,N2=100)

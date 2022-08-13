@@ -70,25 +70,25 @@ def convertYearsTimegridToOurFormat(timegrid):
 
 def convertXYVZtoArcsec(rx,ry,vz):
     """
-    Converts our format to [arcsec, arcsec]
+    Converts a format of [AU, AU, m/s] to [arcsec, arcsec, km/s]
 
     Parameters
     ----------
-    rx : TYPE
-        DESCRIPTION.
-    ry : TYPE
-        DESCRIPTION.
-    vz : TYPE
-        DESCRIPTION.
+    rx : list of floats
+        x values.
+    ry : list of floats
+        y values.
+    vz : list of floats
+        vz values.
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
-    TYPE
-        DESCRIPTION.
-    TYPE
-        DESCRIPTION.
+    list of floats
+        x in arcseconds.
+    list of floats
+        y in arcseconds.
+    list of floats
+        vz in km/s.
 
     """
     return AU_to_arcseconds(rx), AU_to_arcseconds(ry), vz/1000
@@ -262,10 +262,29 @@ def AU_to_arcseconds(dist):
         The converted distance in arcseconds.
 
     """
-    D_0 = 149597870700
+    _, D_0, _ = getBaseUnitConversions()
     R = 2.5540153e+20
     return 2 * np.arctan(dist*D_0/(2*R)) * 206264.8
 
+def arcseconds_to_AU(arcsec):
+    """
+    
+
+    Parameters
+    ----------
+    arcsec : float or np.array
+        Distance in [arsec] to be converted.
+
+    Returns
+    -------
+    float or np.array
+        The converted distance in AU.
+
+    """
+    _, D_0, _ = getBaseUnitConversions()
+    R = 2.5540153e+20
+    
+    return 2 * R * np.tan(arcsec/(2*206264.8)) / D_0  
 
 
 
@@ -711,7 +730,7 @@ def simulateOrbitsCartesian(PNCORRECTION,IC,mis,ris,t_grid):
     return rx,ry,rz, vx * D_0 / T_0, vy * D_0 / T_0, vz * D_0 / T_0
 
 
-def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTESIANOBS=True):
+def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTESIANOBS=True,optimizer='ADAM'):
     """
     
 
@@ -743,6 +762,8 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
         Iteration step number.
     CARTESIANOBS : boolean, optional
         True if using cartesian observations instead of orbital parameters. The default is True.
+    optimizer : string, optional
+        Optimizer with which to do the gradient descent. The default is Adam.
 
     Returns
     -------
@@ -780,8 +801,6 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
     #Reset the state
     ta.state[:] = np.append(x0,np.array(variationalEqsInitialConditions(N)))
     ta.pars[:N] = DMm0
-    ##TODO: better way of getting ris
-    _, ta.pars[N:] = get_BahcallWolf_DM(N, xlim=3000)
     ta.time = 0
     #Simulate ta from initial guess (t=0) until t_obs
     out = ta.propagate_grid(t_obs)
@@ -831,7 +850,7 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
         if OBS3:
             dobsdx = np.delete(dobsdx, (2,3,4), axis=0)
         
-        #Calculate gradient wrt initial conditions (phi)
+        #Calculate gradient wrt initial conditions (phi) and dark matter masses (psi)
         if CARTESIANOBS:
             gradx0 = gradx0 + (2 * difference[oj] @ dobsdx @ Phi ).reshape(1,-1)[0]
             gradDM0 = gradDM0 + (2 * difference[oj] @ dobsdx @ Psi ).reshape(1,-1)[0]
@@ -842,40 +861,169 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
     
     #Plot of gradient matrices:
     # print(dobsdx)
-    # plt.matshow(dobsdx,cmap='RdYlGn')
-    # ax = plt.gca()
-    # plt.colorbar()
-    # plt.clim(-1,1)
-    # ax.xaxis.set_ticks_position('bottom')
-    # plt.xticks(range(6),['dp','de','di','dOm','dw','df'])
-    # plt.yticks(range(6),['dx','dy','dz','dvx','dvy','dvz'])
-    # plt.xticks(range(6),['dp0','de0','di0','dOm0','dw0','df0'])
-    # for (i, j), z in np.ndenumerate(dobsdx):
-    #     if z == 0:
-    #         plt.text(j, i, '0', ha='center', va='center')
-    #     else:
-    #         plt.text(j, i, '{:0.2f}'.format(z), ha='center', va='center')
-    # plt.title("Gradient of cartesian over orbital elements")
-    # plt.show()
-    
-    #Adam optimizer:
+    # if t == 50 or t == 299:
+    #     # plt.matshow(dobsdx,cmap='RdYlGn')
+    #     plt.matshow(Psi,cmap='RdYlGn')
+    #     ax = plt.gca()
+    #     plt.colorbar()
+    #     plt.clim(-1,1)
+    #     ax.xaxis.set_ticks_position('bottom')
+    #     # plt.xticks(range(6),['dp','de','di','dOm','dw','df'])
+    #     plt.yticks(range(6),['dp','de','di','dOm','dw','df'])
+        
+    #     plt.xticks(range(20),['dm{}'.format(i+1) for i in range(20)])
+    #     # plt.yticks(range(6),['dx','dy','dz','dvx','dvy','dvz'])
+    #     # plt.xticks(range(6),['dp0','de0','di0','dOm0','dw0','df0'])
+    #     for (i, j), z in np.ndenumerate(Psi):
+    #         if z == 0:
+    #             plt.text(j, i, '0', ha='center', va='center')
+    #         else:
+    #             plt.text(j, i, '{:0.2f}'.format(z), ha='center', va='center')
+    #     # plt.title("Gradient of cartesian over orbital elements")
+    #     plt.title("Gradient of orbital elements over mascon masses")
+    #     plt.show()
+        
+    #     # plt.matshow(dobsdx,cmap='RdYlGn')
+    #     plt.matshow(dobsdx @ Psi,cmap='RdYlGn')
+    #     ax = plt.gca()
+    #     plt.colorbar()
+    #     plt.clim(-1,1)
+    #     ax.xaxis.set_ticks_position('bottom')
+    #     # plt.xticks(range(6),['dp','de','di','dOm','dw','df'])
+    #     plt.xticks(range(20),['dm{}'.format(i+1) for i in range(20)])
+    #     plt.yticks(range(3),['dx','dy','dvz'])
+    #     # plt.xticks(range(6),['dp0','de0','di0','dOm0','dw0','df0'])
+    #     for (i, j), z in np.ndenumerate(dobsdx @ Psi):
+    #         if z == 0:
+    #             plt.text(j, i, '0', ha='center', va='center')
+    #         else:
+    #             plt.text(j, i, '{:0.2f}'.format(z), ha='center', va='center')
+    #     # plt.title("Gradient of cartesian over orbital elements")
+    #     plt.title("Gradient of cartesian over mascon masses")
+    #     plt.show()
+        
+        # print(gradDM0)
+        
     grad = np.append(gradx0,gradDM0)
     
-    m = beta1 * m + (1.0 - beta1) * grad
-    v = beta2 * v + (1.0 - beta2) * grad**2
-    mhat = m / (1.0 - beta1**(t+1))
-    vhat = v / (1.0 - beta2**(t+1))
-    xDM_new = np.append(x0,DMm0) - alpha * mhat / (np.sqrt(vhat) + eps)
+    # if t >= 199:
+    #     optimizer = 'LINE'
     
-    x_new = xDM_new[:6]
-    DM_new = xDM_new[6:]
+    # if t % 50 == 0:
+    #     print()
+    #     print(grad[6:])
+    
+    # if t % 50 == 0:
+    #     plt.figure()
+    #     _, ris = get_BahcallWolf_DM(N, xlim=3000)
+    #     # plt.scatter(ris,DMm0,label='Mascon shells',alpha=1 - (t/100),color='blue')
+    #     plt.scatter(ris,DMm0,label='Mascon shells')
+    #     if CARTESIANOBS:
+    #         normalizedGrad = -grad[6:] * alpha * 0.001
+    #     else:
+    #         normalizedGrad = -grad[6:] * 0.01
+        
+    #     for i in range(N):
+    #         if i == 0:
+    #             plt.arrow(ris[i],DMm0[i],0,normalizedGrad[i],head_width=0.8, head_length=max(abs(normalizedGrad))/10,label='-Gradient')
+    #         else:
+    #             plt.arrow(ris[i],DMm0[i],0,normalizedGrad[i],head_width=0.8, head_length=max(abs(normalizedGrad))/10)
+    #     # plt.ylim(0,0.00014)
+    #     plt.legend()
+        
+        
+    
+        
+    if optimizer == 'ADAM':
+        #Adam optimizer:
+        
+        m = beta1 * m + (1.0 - beta1) * grad
+        v = beta2 * v + (1.0 - beta2) * grad**2
+        mhat = m / (1.0 - beta1**(t+1))
+        vhat = v / (1.0 - beta2**(t+1))
+        xDM_new = np.append(x0,DMm0) - alpha * mhat / (np.sqrt(vhat) + eps)
+        
+        x_new = xDM_new[:6]
+        DM_new = xDM_new[6:]
     
     
-    #Basic gradient descent:
-    # delta = - alpha * grad
-    # delta = delta.reshape(1,-1)[0]
-    # x_new = x0+delta[:6]
-    # DM_new = DMm0 + delta[6:]
+    elif optimizer == 'LINE':
+        alphas = np.append(0,np.logspace(-15,-5,20))
+        if True:
+            # print(alphas)
+            mindiff = 100000
+            # chosenindex = 0
+            diffs = []
+            fulldiffs = []
+            chosenX = x0
+            chosenDM = DMm0
+            for i in range(len(alphas)):
+                # print(i)
+                delta = - alphas[i] * grad
+                delta = delta.reshape(1,-1)[0]
+                x_new = x0+delta[:6]
+                DM_new = DMm0 + delta[6:]
+                
+                #Reset the state
+                ta.state[:] = np.append(x_new,np.array(variationalEqsInitialConditions(N)))
+                ta.pars[:N] = DM_new
+                ta.time = 0
+                #Simulate ta from initial guess (t=0) until t_obs
+                out = ta.propagate_grid(t_obs)
+                
+                orbparamvalues = np.asarray(out[4][:,[0,1,2,3,4,5]]).copy()
+                
+                simulatedlistL = orbparamvalues.copy()
+                
+                if CARTESIANOBS:
+                    simulatedlistL = convertToCartesian(simulatedlistL[:,0], simulatedlistL[:,1], simulatedlistL[:,2],\
+                            simulatedlistL[:,3], simulatedlistL[:,4], simulatedlistL[:,5])
+                    
+                    if OBS3:
+                        simulatedlistL = np.array(simulatedlistL)
+                        simulatedlistL =  simulatedlistL[[0,1,-1],:]
+                
+                    simulatedlistL = np.transpose(simulatedlistL)
+                
+                #Take difference of observation with simulation from initial guess
+                difference = np.subtract(simulatedlistL, obs)
+                totdiff = np.sum(abs(difference))
+                diffs.append(totdiff)
+                fulldiffs.append(difference)
+                
+                if totdiff < mindiff:
+                    mindiff = totdiff
+                    # chosenindex = i
+                    chosenX = x0+delta[:6]
+                    chosenDM = DMm0 + delta[6:]
+                    
+            # if t == 0:
+            difference = np.subtract(simulatedlist, obs)
+            # print('Orig diff:',difference)
+            totdiff = np.sum(abs(difference))
+            # print('Loss:',totdiff)
+            # print('New diff',fulldiffs[chosenindex])
+            # print('New loss:',mindiff)
+            # print('Chosen alpha:', alphas[chosenindex])
+            # print('Chosen DM:',chosenDM)
+            plt.figure()
+            plt.hlines(totdiff, alphas[0], alphas[-1],label='Previous loss',color='orange')
+            plt.plot(alphas,diffs,label='New loss')
+            plt.xscale('log')
+            plt.yscale('log')
+            plt.xlabel('Learning rate')
+            plt.ylabel('Loss')
+            plt.legend()
+            
+            x_new = chosenX
+            DM_new = chosenDM
+            
+    else:
+        # Basic gradient descent:
+        delta = - alpha * grad
+        delta = delta.reshape(1,-1)[0]
+        x_new = x0 + delta[:6]
+        DM_new = DMm0 + delta[6:]
     
     
     #Additional constraints:
@@ -945,8 +1093,7 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     timegrid = obslist[:,0]
     
-    #TODO: allow 6 observations
-    observationlist = obslist[:,[1,2,3]]
+    observationlist = np.delete(obslist, [0], axis=1)
     
 
     t_grid = convertYearsTimegridToOurFormat(timegrid)
@@ -957,7 +1104,7 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     v = np.array([0.0 for _ in range(6+N)])
     
     # step size
-    alpha = 1e-5
+    alpha = 1e-6
     
     # factor for average gradient
     beta1 = 0.9
@@ -966,8 +1113,12 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     #Precision
     eps = 1e-8
     
+    optimizer = 'ADAM'
+    # optimizer = 'LINE'
+    # optimizer = 'GRAD'
     
-    iterations = 500
+    
+    iterations = 200
     
     ICiterations = np.array([ic_guess])
     DMiterations = np.array([dm_guess])
@@ -975,6 +1126,8 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     
     ta = buildTaylorIntegrator(True, N)
+    #TODO: better way of getting ris
+    _, ta.pars[N:] = get_BahcallWolf_DM(N, xlim=3000)
     
     
     #Print progress of the iterations
@@ -982,20 +1135,29 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     start = time.time()
     
     for t in range(iterations):
-        if t != 0 and iterations > 5 and (t+1) % round(iterations/10) == 0: 
-            # print('Iteration',t,'done')
+        if t != 0 and iterations > 10 and (t+1) % round(iterations/10) == 0: 
             pointsPerSecond = round(t/(time.time()-start),2)
+            secsRemaining = round((iterations - t) / (pointsPerSecond))
             minsRemaining = round((iterations - t) / (pointsPerSecond*60),2)
-            printProgressBar(t+1, iterations, prefix = 'Iterating:', \
-                             suffix = 'Complete,{} mins remaining, {} iterations/s'.format(minsRemaining,pointsPerSecond), length = 30)
+            if minsRemaining > 1:
+                printProgressBar(t+1, iterations, prefix = 'Iterating:', \
+                                 suffix = 'Complete,{} mins remaining, {} iterations/s'.format(minsRemaining,pointsPerSecond), length = 30)
+            else:
+                printProgressBar(t+1, iterations, prefix = 'Iterating:', \
+                                 suffix = 'Complete,{} secs remaining, {} iterations/s'.format(secsRemaining,pointsPerSecond), length = 30)
                         
         
-        # ta, ic_guess,DM_guess,sim,m,v = orbitModule.corrector(ta, ic_guess,DM_guess, \
-        #       observationlist, t_obslist, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS)
+        ta, ic_guess, dm_guess,sim,m,v = corrector(ta, ic_guess,dm_guess, \
+              observationlist, t_grid, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS,optimizer)
         
         #Don't allow initial conditions to change:
-        ta, _ ,dm_guess,sim,m,v = corrector(ta, ic_guess,dm_guess, \
-              observationlist, t_grid, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS)
+        # ta, _ ,dm_guess,sim,m,v = corrector(ta, ic_guess,dm_guess, \
+        #       observationlist, t_grid, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS,optimizer)
+        
+        
+        #Don't allow dark matter to change:
+        # ta, ic_guess ,_,sim,m,v = corrector(ta, ic_guess,dm_guess, \
+        #       observationlist, t_grid, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS,optimizer)
         
         ICiterations = np.append(ICiterations,ic_guess)
         DMiterations = np.append(DMiterations,dm_guess)
@@ -1023,13 +1185,13 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     obsiterations = obsiterations.reshape((iterations+1,len(observationlist),len(observationlist[0])))    
     
     
-    print("")
+    # print("")
     print('First guess for IC:',ICiterations[0])
     print('Reconstructed IC:  ',np.array(ic_guess))
-    print("")
-    print('First guess for DM:',DMiterations[0])
-    print('Reconstructed DM:  ',list(dm_guess))
-    print("")
+    # print("")
+    # print('First guess for DM:',DMiterations[0])
+    # print('Reconstructed DM:  ',list(dm_guess))
+    # print("")
     
         
     iters = np.arange(0,iterations+1,1)
@@ -1063,13 +1225,20 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     #Convergence of observation:
     # absdiffs = [[difx obs 1, dify obs1, difz obs1] , [difx obs 2, dify obs2, difz obs2] 
+    # print(obsiterations)
+    # print(observationlist)
+    # print(np.subtract(obsiterations,np.array((iterations+1)*[observationlist])))
     absdiffs = np.sum(abs(np.subtract(obsiterations,np.array((iterations+1)*[observationlist]))),axis=1)
+    # print(absdiffs)
     absdiffsTotal = np.sum(absdiffs,axis = 1)
+    # print(absdiffsTotal)
     plt.figure()
     plt.scatter(iters,absdiffsTotal,color='blue',s=8)
     plt.ylabel("Difference with observation")
     plt.xlabel("Amount of iterations")
     plt.title("Gradient descent to match observation")
+    
+    
     
     if CARTESIANOBS:
         M_0, D_0, T_0 = getBaseUnitConversions()
@@ -1093,6 +1262,37 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
         plt.xlabel("Time")
         plt.title("Y simulated - Y observed")
         plt.legend()
+        
+        if not OBS3:
+            plt.figure()
+            plt.scatter(timegrid,1e6*(AU_to_arcseconds(obsiterations[:][0][:,2])-AU_to_arcseconds(observationlist[:,2])),color='lightgrey',s=8,label='Initial difference')
+            plt.scatter(timegrid,1e6*(AU_to_arcseconds(obsiterations[:][-1][:,2])-AU_to_arcseconds(observationlist[:,2])),color='blue',s=8,label='Difference')
+            plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+            plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+            plt.ylabel("Difference with observation")
+            plt.xlabel("Time")
+            plt.title("Z simulated - Z observed")
+            plt.legend()
+            
+            plt.figure()
+            plt.scatter(timegrid,obsiterations[:][0][:,3]* D_0 / (T_0 * 1000)-observationlist[:,3]* D_0 / (T_0 * 1000),color='lightgrey',s=8,label='Initial difference')
+            plt.scatter(timegrid,obsiterations[:][-1][:,3]* D_0 / (T_0 * 1000)-observationlist[:,3]* D_0 / (T_0 * 1000),color='blue',s=8,label='Reconstructed difference')
+            plt.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
+            plt.plot(timegrid,len(timegrid)*[-10],'--',color='red')
+            plt.ylabel("Difference with observation")
+            plt.xlabel("Time")
+            plt.title("VX simulated - VX observed")
+            plt.legend()
+            
+            plt.figure()
+            plt.scatter(timegrid,obsiterations[:][0][:,4]* D_0 / (T_0 * 1000)-observationlist[:,4]* D_0 / (T_0 * 1000),color='lightgrey',s=8,label='Initial difference')
+            plt.scatter(timegrid,obsiterations[:][-1][:,4]* D_0 / (T_0 * 1000)-observationlist[:,4]* D_0 / (T_0 * 1000),color='blue',s=8,label='Reconstructed difference')
+            plt.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
+            plt.plot(timegrid,len(timegrid)*[-10],'--',color='red')
+            plt.ylabel("Difference with observation")
+            plt.xlabel("Time")
+            plt.title("VY simulated - VY observed")
+            plt.legend()
         
         plt.figure()
         plt.scatter(timegrid,obsiterations[:][0][:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000),color='lightgrey',s=8,label='Initial difference')

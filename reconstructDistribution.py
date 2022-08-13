@@ -93,15 +93,30 @@ def reconstructDistribution(PNCORRECTION,mis,ris, ic_guess, dm_guess, CARTESIANO
     _, _, T_0 = orbitModule.getBaseUnitConversions()
     timegrid = 2.010356112597776246e+03 + t_obslist * T_0 / (365.25 * 24 * 60**2 )
     
-    #TODO: be able to work in arcseconds
     observationlist = np.column_stack((timegrid, observationlist))
+    
     
     #observationlist =[[t1 x1 y1 ... vz1], [t2 x2 y2 ... vz2],...[]]
     return orbitModule.reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS,OBS3)
     
+
+def reconstructFromFile(filename,ic_guess,dm_guess):
+    M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
+    observations = np.loadtxt(filename)
+    #Observations are given in time [yr] Y [arcsec] X [arcsec] VZ [km/s]
+    
+    timegrid = observations[:,0]
+    rYs = orbitModule.arcseconds_to_AU(observations[:,1])
+    rXs = orbitModule.arcseconds_to_AU(observations[:,2])
+    vZs = observations[:,3] * 1000 * T_0 / D_0 
+
+    
+    observationlist = np.column_stack((timegrid, rXs, rYs, vZs))
+    
+    return orbitModule.reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS=True,OBS3=True)
     
     
-    
+
 
 #20 mascons plummer
 mis, ris = orbitModule.get_Plummer_DM(20,3000)
@@ -117,8 +132,10 @@ ic_guess = IC
 # dm_guess = mis
 dm_guess = 1.001*np.array(mis)
 
-reconic, reconmis = reconstructDistribution(True,mis,ris,ic_guess,dm_guess, \
-                                   CARTESIANOBS = True,OBS3 = True)
+# reconic, reconmis = reconstructDistribution(True,mis,ris,ic_guess,dm_guess, \
+#                                     CARTESIANOBS = True,OBS3 = True)
+    
+reconic, reconmis = reconstructFromFile('Datasets/Plummer_N=20.txt',ic_guess,dm_guess)
 
 
 rp = 119.52867

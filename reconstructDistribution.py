@@ -10,140 +10,45 @@ from matplotlib.pylab import plt
 import orbitModule
 
 
-
-
-def reconstructDistribution(PNCORRECTION,mis,ris, ic_guess, dm_guess, CARTESIANOBS = True,OBS3 = True):
-    """
-    
-
-    Parameters
-    ----------
-    PNCORRECTION : boolean
-        True if using 1PN correction
-    mis : list of floats
-        initial guesses of masses of dark matter shells in MBH masses
-    ris : list of floats
-        distances of dark matter shells in AU.
-    ic_guess : list of floats
-        the initial guess for the initial conditions
-    dm_guess : list of floats
-        the initial guess for the dark matter masses
-    CARTESIANOBS : boolean, optional
-        True if using cartesian observations instead of orbital parameter observations. The default is True.
-    OBS3 : boolean, optional
-        True if only using 3 observed parameters (first, second and last = x,y and vz for cartesian). The default is True.
-
-    Raises
-    ------
-    RuntimeError
-        If the length of dark matter masses and distances do not match, an error is raised.
-
-    Returns
-    -------
-    list of floats
-        list of reconstructed dark matter masses.
-
-    Reconstructs dark matter distribution starting from an initial guess
-    """
-    
-    if len(mis) != len(ris):
-        raise RuntimeError("Lengths of DM masses and distances does not match")
-        
-    N = len(mis)
-    
-    ta = orbitModule.buildTaylorIntegrator(PNCORRECTION, N)
-    
-    
-    np.set_printoptions(precision=5)
-    
-    M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
-    
-    #Time of observation
-    # last_time = 293097.9510676383
-    # t_obslist = [last_time,last_time*1.1,last_time*1.2]
-    
-    t_obslist =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
-    # t_obslist = np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 
-    
-        
-    IC = orbitModule.get_S2_IC()
-        
-    #Setup for fake reconstruction:
-    ta.state[:6] = IC
-    ta.time = 0
-    ta.pars[:N] = mis
-    ta.pars[N:] = ris
-    out = ta.propagate_grid(t_obslist)
-    
-    
-    observationlist = np.asarray(out[4][:,[0,1,2,3,4,5]]).copy()
-    
-    
-    if CARTESIANOBS:
-        observationlist = orbitModule.convertToCartesian(observationlist[:,0], observationlist[:,1], observationlist[:,2],\
-                observationlist[:,3], observationlist[:,4], observationlist[:,5])
-        
-        if OBS3:
-            observationlist = np.array(observationlist)
-            observationlist =  observationlist[[0,1,-1],:]
-    
-        observationlist = np.transpose(observationlist)
-    
-    #Convert time to years
-    _, _, T_0 = orbitModule.getBaseUnitConversions()
-    timegrid = 2.010356112597776246e+03 + t_obslist * T_0 / (365.25 * 24 * 60**2 )
-    
-    observationlist = np.column_stack((timegrid, observationlist))
-    
-    
-    #observationlist =[[t1 x1 y1 ... vz1], [t2 x2 y2 ... vz2],...[]]
-    return orbitModule.reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS,OBS3)
-    
-
-def reconstructFromFile(filename,ic_guess,dm_guess):
-    M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
-    observations = np.loadtxt(filename)
-    #Observations are given in time [yr] Y [arcsec] X [arcsec] VZ [km/s]
-    
-    timegrid = observations[:,0]
-    rYs = orbitModule.arcseconds_to_AU(observations[:,1])
-    rXs = orbitModule.arcseconds_to_AU(observations[:,2])
-    vZs = observations[:,3] * 1000 * T_0 / D_0 
-
-    
-    observationlist = np.column_stack((timegrid, rXs, rYs, vZs))
-    
-    return orbitModule.reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS=True,OBS3=True)
-    
-    
-
-
 #20 mascons plummer
 mis, ris = orbitModule.get_Plummer_DM(20,3000)
-
-mis = 1*np.array(mis)
+# mis, ris = orbitModule.get_BahcallWolf_DM(20,3000)
+# mis = 1*np.array(mis)
 
 IC = orbitModule.get_S2_IC()
 ic_guess = IC
 # ic_guess = np.multiply(IC, len(IC)*[1.000001])
 
+dm_guess = mis
 # dm_guess = len(mis)*[0]
 # dm_guess = len(mis)*[0.00008]
-# dm_guess = mis
-dm_guess = 1.001*np.array(mis)
+# dm_guess = 0.5*np.array(mis)
 
-# reconic, reconmis = reconstructDistribution(True,mis,ris,ic_guess,dm_guess, \
-#                                     CARTESIANOBS = True,OBS3 = True)
+
+#Times of observation in [seconds/T_0]
+_, _, T_0 = orbitModule.getBaseUnitConversions()
+
+obstimes =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+# obstimes = np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 
+
+# reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
+#                                               ic_guess,dm_guess, CARTESIANOBS = True,OBS3 = True)
     
-reconic, reconmis = reconstructFromFile('Datasets/Plummer_N=20.txt',ic_guess,dm_guess)
+filename = 'Datasets/Plummer_N=20.txt'
+# filename = 'Datasets/BahcallWolf_N=20.txt'
+reconic, reconmis = orbitModule.reconstructFromFile(filename,ic_guess,dm_guess, \
+                                                    ADD_NOISE = False, noisefactor = 1)
 
+# mis, ris = orbitModule.get_BahcallWolf_DM(20,3000)
+# mis, ris = orbitModule.get_Plummer_DM(20,3000)
 
 rp = 119.52867
 ra = 1948.96214
 plt.figure()
 
-plt.scatter(ris,mis,label='Plummer model')
-plt.scatter(ris,dm_guess,label='Initial guess',color='grey')
+# plt.scatter(ris,mis,label='BahcallWolf model')
+# plt.scatter(ris,mis,label='Plummer model')
+plt.scatter(ris,dm_guess,label='Initial guess',color='grey',alpha=0.5)
 plt.scatter(ris,reconmis,label='Reconstructed')
 plt.axvline(-rp,linestyle='--',label='rp and ra',color='black')
 plt.axvline(ra,linestyle='--',color='black')

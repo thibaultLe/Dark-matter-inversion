@@ -29,7 +29,6 @@ xlim = 3000
 
 
 #TODO: sinusoidal, uniform, etc distributions and save them
-#TODO: add noise (perhaps after loading the data)
 
 
 

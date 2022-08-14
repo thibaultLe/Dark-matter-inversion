@@ -1323,5 +1323,149 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     
     return ic_guess, dm_guess
+
+
+
+
+
+def reconstructDistributionFromTrueMasses(PNCORRECTION,mis,ris, obstimes, ic_guess, dm_guess, CARTESIANOBS = True,OBS3 = True):
+    """
+    Reconstructs the dark matter distribution from observations of
+
+    Parameters
+    ----------
+    PNCORRECTION : boolean
+        True if using 1PN correction
+    mis : list of floats
+        True masses of dark matter shells in MBH masses
+    ris : list of floats
+        distances of dark matter shells in AU.
+    obstimes : list of floats
+        Observation times in our units [seconds/T_0].
+    ic_guess : list of floats
+        the initial guess for the initial conditions
+    dm_guess : list of floats
+        the initial guess for the dark matter masses
+    CARTESIANOBS : boolean, optional
+        True if using cartesian observations instead of orbital parameter observations. The default is True.
+    OBS3 : boolean, optional
+        True if only using 3 observed parameters (first, second and last = x,y and vz for cartesian). The default is True.
+
+    Raises
+    ------
+    RuntimeError
+        If the length of dark matter masses and distances do not match, an error is raised.
+
+    Returns
+    -------
+    list of floats
+        list of reconstructed dark matter masses.
+
+    Reconstructs dark matter distribution starting from an initial guess
+    """
+    
+    if len(mis) != len(ris):
+        raise RuntimeError("Lengths of DM masses and distances does not match")
+        
+    N = len(mis)
+    
+    ta = buildTaylorIntegrator(PNCORRECTION, N)
+    
+    np.set_printoptions(precision=5)
+    
+    M_0, D_0, T_0 = getBaseUnitConversions()
+        
+    IC = get_S2_IC()
+        
+    #Setup for fake reconstruction:
+    ta.state[:6] = IC
+    ta.time = 0
+    ta.pars[:N] = mis
+    ta.pars[N:] = ris
+    out = ta.propagate_grid(obstimes)
+    
+    observationlist = np.asarray(out[4][:,[0,1,2,3,4,5]]).copy()
+    
+    if CARTESIANOBS:
+        observationlist = convertToCartesian(observationlist[:,0], observationlist[:,1], observationlist[:,2],\
+                observationlist[:,3], observationlist[:,4], observationlist[:,5])
+        
+        if OBS3:
+            observationlist = np.array(observationlist)
+            observationlist =  observationlist[[0,1,-1],:]
+    
+        observationlist = np.transpose(observationlist)
+    
+    #Convert time to years
+    _, _, T_0 = getBaseUnitConversions()
+    timegrid = 2.010356112597776246e+03 + obstimes * T_0 / (365.25 * 24 * 60**2 )
+    
+    observationlist = np.column_stack((timegrid, observationlist))
     
     
+    #observationlist =[[t1 x1 y1 ... vz1], [t2 x2 y2 ... vz2],...[]]
+    return reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS,OBS3)
+
+    
+def reconstructFromFile(filename,ic_guess,dm_guess,ADD_NOISE = True,seed = 0,noisefactor = 1):
+    """
+    
+
+    Parameters
+    ----------
+    filename : string
+        Path of datafile (.txt).
+    ic_guess : list of floats
+        the initial guess for the initial conditions
+    dm_guess : list of floats
+        the initial guess for the dark matter masses
+    ADD_NOISE : boolean, optional
+        True if adding artificial noise to the data. The default is True.
+    seed : int, optional
+        Random seed for reproducibility. The default is 0.
+    noisefactor : float, optional
+        Factor to reduce/increase the noise below/above the standard. The default is 1.
+
+    Returns
+    -------
+    reconic, reconmis : list of floats, list of floats
+        Reconstructed initial conditions and dark matter masses.
+
+    """
+    M_0, D_0, T_0 = getBaseUnitConversions()
+    observations = np.loadtxt(filename)
+    #Observations are given in time [yr] Y [arcsec] X [arcsec] VZ [km/s]
+    
+    timegrid = observations[:,0]
+    
+    
+    rYs = observations[:,1]
+    rXs = observations[:,2]
+    vZs = observations[:,3]
+    
+    if ADD_NOISE:
+        np.random.seed(seed)
+        
+        #Positional precision is 50 microarcseconds
+        noiseLevelPos = 50 * 1e-6 * noisefactor
+        #Velocity precision is 10 km/s
+        noiseLevelVel = 10 * noisefactor
+        
+        
+        noisePos = np.random.normal(0,noiseLevelPos,len(rXs))
+        noiseVel = np.random.normal(0,noiseLevelVel,len(rXs))
+        rYs = rYs + noisePos
+        rXs = rXs + noisePos
+        vZs = vZs + noiseVel
+        
+    
+    rYs = arcseconds_to_AU(rYs)
+    rXs = arcseconds_to_AU(rXs)
+    vZs = vZs * 1000 * T_0 / D_0 
+
+    
+    observationlist = np.column_stack((timegrid, rXs, rYs, vZs))
+    
+    return reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS=True,OBS3=True)
+        
+        

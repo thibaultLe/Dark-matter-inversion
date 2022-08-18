@@ -11,6 +11,19 @@ import orbitModule
 
 
 
+comparedData = np.loadtxt('Datasets/1PN.txt')
+timegrid = comparedData[:,0]
+
+t_grid = orbitModule.convertYearsTimegridToOurFormat(timegrid)
+M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
+
+#Plot dark matter distribution
+#AU limit
+xlim = 3000
+#Amount of points in linspace
+n = 1000
+
+
 def enclosedMassPlum(a,rho0):
     r0 = 2474.01
     return (4 * a**3 * np.pi * r0**3 * rho0) / ( 3 * (a**2 + r0**2)**(3/2))
@@ -21,7 +34,6 @@ def enclosedMassCusp(a,rho0):
 
 
 def plotMasconsMass(N=20,k=0.1,PLUM=True):
-    #Bahcall-Wolf cusp model:
     rDM = np.linspace(0,xlim,n)
     
     rho0plum = 1.69*10**(-10) * (D_0**3) / M_0
@@ -29,7 +41,7 @@ def plotMasconsMass(N=20,k=0.1,PLUM=True):
     
     # #Plummer model:
     # rhoPlum = rho0plum *( 1. + ((rDM**2) / (r0**2)))**(-5/2)
-    # #Cusp model:
+    # #BahcallWolfCusp model:
     # rhoCusp = rho0cusp * (rDM / r0)**(-7/4)
     
     rp = 119.52867
@@ -64,7 +76,7 @@ def plotMasconsMass(N=20,k=0.1,PLUM=True):
     
     plt.plot(rDM,sumRis,label='Sum of sigmoids')
     plt.ylabel('enclosed mass [MBH masses]')
-    plt.axvline(-rp,linestyle='--',label='rp and ra',color='black')
+    plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
     plt.axvline(ra,linestyle='--',color='black')
     # plt.scatter(ris,np.cumsum(mis),label='Mascon shells',color='orange')
     # plt.bar(ris,np.cumsum(mis),width=(xlim)/(N),alpha=0.2,align='edge',edgecolor='orange',color='orange')
@@ -75,7 +87,7 @@ def plotMasconsMass(N=20,k=0.1,PLUM=True):
     #Plot mass of mascons
     plt.figure()
     plt.scatter(ris,mis,label='Mascon shell masses',color='orange')
-    plt.axvline(-rp,linestyle='--',label='rp and ra',color='black')
+    plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
     plt.axvline(ra,linestyle='--',color='black')
     plt.ylabel('Mass [MBH masses]')
     plt.xlabel('Distance from MBH [AU]')
@@ -303,28 +315,89 @@ def plotDifferenceWIth1PN():
     plt.scatter(timegrid,-vzPN/1000,label='VZ PN , [km/s]',s=10)
     plt.legend()
 
+def plotDifferencePlumVsBahcall():
+    N = 100
+    xlim = 3000
+    
+    IC = orbitModule.get_S2_IC()
+    
+    mis, ris = orbitModule.get_BahcallWolf_DM(N, xlim)
+    
+    rxBW,ryBW,rzBW, vxBW,vyBW,vzBW = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,t_grid)
+    
+    mis,ris = orbitModule.get_Plummer_DM(N, xlim)
+    
+    rxDM,ryDM,rzDM,vxDM,vyDM,vzDM = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,t_grid)
+    
+    #Plot difference of DM:
+    plt.figure()
+    plt.xlabel('Time (years)')
+    plt.ylabel('X DM - X PN  [µas]')
+    plt.scatter(timegrid,orbitModule.AU_to_arcseconds(rxDM-rxBW)*1e6,s=10,label='Difference')
+    plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+    plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+    plt.legend()
+    
+    #Plot difference of DM:
+    plt.figure()
+    plt.xlabel('Time (years)')
+    plt.ylabel('Y DM - Y PN  [µas]')
+    plt.scatter(timegrid,orbitModule.AU_to_arcseconds(ryDM-ryBW)*1e6,s=10,label='Difference')
+    plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+    plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+    plt.legend()
+    
+    
+    #Plot difference of DM:
+    plt.figure()
+    plt.xlabel('Time (years)')
+    plt.ylabel('VZ DM - VZ PN  [km/s]')
+    plt.scatter(timegrid,(vzDM-vzBW)/1000,s=10,label='Difference')
+    plt.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
+    plt.plot(timegrid,len(timegrid)*[-10],'--',color='red')
+    plt.legend()
+    
+    
+    
+    #Plot effects of DM:
+    plt.figure()
+    plt.xlabel('Time (years)')
+    plt.ylabel('Value')
+    plt.scatter(timegrid,orbitModule.AU_to_arcseconds(rxDM)*1e6,label='X DM , [µas]',s=10)
+    plt.scatter(timegrid,orbitModule.AU_to_arcseconds(rxBW)*1e6,label='X PN , [µas]',s=10)
+    plt.legend()
+    
+    
+    #Plot effects of DM:
+    plt.figure()
+    plt.xlabel('Time (years)')
+    plt.ylabel('Value')
+    plt.scatter(timegrid,orbitModule.AU_to_arcseconds(ryDM)*1e6,label='Y DM , [µas]',s=10)
+    plt.scatter(timegrid,orbitModule.AU_to_arcseconds(ryBW)*1e6,label='Y PN , [µas]',s=10)
+    plt.legend()
+    
+    
+    #Plot effects of DM:
+    plt.figure()
+    plt.xlabel('Time (years)')
+    plt.ylabel('Value')
+    plt.scatter(timegrid,-vzDM/1000,label='VZ DM , [km/s]',s=10)
+    plt.scatter(timegrid,-vzBW/1000,label='VZ PN , [km/s]',s=10)
+    plt.legend()
 
 
-comparedData = np.loadtxt('Datasets/1PN.txt')
-timegrid = comparedData[:,0]
-
-t_grid = orbitModule.convertYearsTimegridToOurFormat(timegrid)
-M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
-
-#Plot dark matter distribution
-#AU limit
-xlim = 3000
-#Amount of points in linspace
-n = 1000
 
 """
 #Uncomment functions here to use them:
 """
-# plotMasconsMass(N=5,k=0.1)
-# plotMasconsMass(N=10,k=0.005)
-plotMasconsMass(N=20,k=0.01,PLUM=True)
-plotMasconsMass(N=30,k=0.01,PLUM=False)
 
-# effectOfIndividualMascons()
-# plotDifferenceWIth1PN()
-# effectOfAmountOfMascons(N1=1,N2=100)
+if __name__ == "__main__":
+    # plotMasconsMass(N=5,k=0.1)
+    # plotMasconsMass(N=10,k=0.005)
+    # plotMasconsMass(N=20,k=0.01,PLUM=True)
+    # plotMasconsMass(N=30,k=0.01,PLUM=False)
+    
+    # effectOfIndividualMascons()
+    # plotDifferenceWIth1PN()
+    effectOfAmountOfMascons(N1=20,N2=300)
+    # plotDifferencePlumVsBahcall()

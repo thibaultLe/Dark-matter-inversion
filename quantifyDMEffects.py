@@ -19,7 +19,7 @@ M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
 
 #Plot dark matter distribution
 #AU limit
-xlim = 3000
+xlim = 2500
 #Amount of points in linspace
 n = 1000
 
@@ -122,11 +122,20 @@ def effectOfAmountOfMascons(N1=10,N2=100):
         orbitModule.simulateOrbitsCartesian(True, IC, misN2, risN2,t_grid)
     
     
+    xdifs = 1e6*(orbitModule.AU_to_arcseconds(rxDMN2)-orbitModule.AU_to_arcseconds(rxDMN1))
+    ydifs = 1e6*(orbitModule.AU_to_arcseconds(ryDMN2)-orbitModule.AU_to_arcseconds(ryDMN1))
+    vzdifs = (vzDMN2-vzDMN1)/1000
+    
+    print('Max X difference:',max(abs(xdifs)),'[µas]')
+    print('Max Y difference:',max(abs(ydifs)),'[µas]')
+    print('Max VZ difference:',max(abs(vzdifs)),'[km/s]')
+    
+    
     plt.figure()
     plt.xlabel('Time (years)')
     plt.ylabel('Difference [µas]')
     plt.title('X ({} mascons) - X ({} mascons)'.format(N2,N1))
-    plt.scatter(timegrid,1e6*(orbitModule.AU_to_arcseconds(rxDMN2)-orbitModule.AU_to_arcseconds(rxDMN1)),s=10)
+    plt.scatter(timegrid,xdifs,s=10)
     plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
     plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
     plt.legend()
@@ -136,7 +145,7 @@ def effectOfAmountOfMascons(N1=10,N2=100):
     plt.xlabel('Time (years)')
     plt.ylabel('Difference [µas]')
     plt.title('Y ({} mascons) - Y ({} mascons)'.format(N2,N1))
-    plt.scatter(timegrid,1e6*(orbitModule.AU_to_arcseconds(ryDMN2)-orbitModule.AU_to_arcseconds(ryDMN1)),s=10)
+    plt.scatter(timegrid,ydifs,s=10)
     plt.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
     plt.plot(timegrid,len(timegrid)*[-50],'--',color='red')
     plt.legend()
@@ -146,7 +155,7 @@ def effectOfAmountOfMascons(N1=10,N2=100):
     plt.xlabel('Time (years)')
     plt.ylabel('Difference [km/s]')
     plt.title('VZ ({} mascons) - VZ ({} mascons)'.format(N2,N1))
-    plt.scatter(timegrid,(vzDMN2-vzDMN1)/1000,s=10)
+    plt.scatter(timegrid,vzdifs,s=10)
     plt.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
     plt.plot(timegrid,len(timegrid)*[-10],'--',color='red')
     plt.legend()
@@ -255,7 +264,7 @@ def plotDifferenceWIth1PN():
     
     rxPN,ryPN,rzPN, vxPN,vyPN,vzPN = orbitModule.simulateOrbitsCartesian(True, IC, mis0, ris0,t_grid)
     
-    mis,ris = orbitModule.get_Plummer_DM(100, 3000)
+    mis,ris = orbitModule.get_Plummer_DM(100, 2500)
     
     rxDM,ryDM,rzDM,vxDM,vyDM,vzDM = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,t_grid)
     
@@ -315,9 +324,8 @@ def plotDifferenceWIth1PN():
     plt.scatter(timegrid,-vzPN/1000,label='VZ PN , [km/s]',s=10)
     plt.legend()
 
-def plotDifferencePlumVsBahcall():
-    N = 100
-    xlim = 3000
+def plotDifferencePlumVsBahcall(N=100):
+    xlim = 2500
     
     IC = orbitModule.get_S2_IC()
     
@@ -392,12 +400,18 @@ def plotDifferencePlumVsBahcall():
 """
 
 if __name__ == "__main__":
+    plotMasconsMass(N=5,k=0.1)
     # plotMasconsMass(N=5,k=0.1)
     # plotMasconsMass(N=10,k=0.005)
-    # plotMasconsMass(N=20,k=0.01,PLUM=True)
+    # plotMasconsMass(N=1000,k=0.01,PLUM=True)
     # plotMasconsMass(N=30,k=0.01,PLUM=False)
     
     # effectOfIndividualMascons()
     # plotDifferenceWIth1PN()
-    effectOfAmountOfMascons(N1=20,N2=300)
-    # plotDifferencePlumVsBahcall()
+    # effectOfAmountOfMascons(N1=2,N2=1000)
+    # effectOfAmountOfMascons(N1=5,N2=1000)
+    # effectOfAmountOfMascons(N1=10,N2=10000)
+    # effectOfAmountOfMascons(N1=25,N2=10000)
+    # effectOfAmountOfMascons(N1=50,N2=10000)
+    # effectOfAmountOfMascons(N1=100,N2=10000)
+    # plotDifferencePlumVsBahcall(N=100)

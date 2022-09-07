@@ -13,10 +13,10 @@ import orbitModule
 if __name__ == "__main__":
     
     #Amount of dark matter shells
-    N = 20
+    N = 10
     
     #Max x limit (in AU)
-    xlim = 3000
+    xlim = 2500
     
     #Dark matter mascons (in MBH masses units), Mascon distance from MBH (in AU)
     mis,ris = orbitModule.get_Plummer_DM(N, xlim)
@@ -34,17 +34,22 @@ if __name__ == "__main__":
     rx,ry,rz,vx,vy,vz= orbitModule.simulateOrbitsCartesian(False, IC, mis, ris, t_grid)
     
     
+    # plt.figure()
+    # plt.hist(np.sqrt(rx**2+ry**2+rz**2),bins=20)
+    # plt.ylabel('Number of observations')
+    # plt.xlabel('Distance from MBH [AU]')
+    
     
     #Plot position and MBH
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.plot(rx[1:], ry[1:], rz[1:], label='Position')
-    ax.scatter(rx[0], ry[0], rz[0], label='Start',color='lawngreen')
-    ax.scatter(rx[-1], ry[-1], rz[-1], label='End',color="red")
+    ax.plot(rx[1:], ry[1:], rz[1:], label='Orbit of S2')
+    # ax.scatter(rx[0], ry[0], rz[0], label='Start',color='lawngreen')
+    # ax.scatter(rx[-1], ry[-1], rz[-1], label='End',color="red")
     ax.scatter(0,0,0,color='black',label="MBH")
-    ax.set_xlabel('rX')
-    ax.set_ylabel('rY')
-    ax.set_zlabel('rZ')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
     
     #Plot DM shells (3D spheres)
     u = np.linspace(0, 2 * np.pi, 20)
@@ -58,7 +63,7 @@ if __name__ == "__main__":
         #Only plot if dark matter mass is not zero
         if mis[i] != 0:
             surf =ax.plot_surface(ris[i]*x_sphere, ris[i]*y_sphere, ris[i]*z_sphere,  \
-                rstride=1, cstride=1, color='black', linewidth=0, alpha=0.01,label='DM shell(s)')
+                rstride=1, cstride=1, color='black', linewidth=0, alpha=0.05,label='DM shell(s)')
             surf._facecolors2d = surf._facecolor3d
             surf._edgecolors2d = surf._edgecolor3d
             

@@ -25,7 +25,7 @@ N = 20
 
 #Set dark matter distribution
 #AU limit
-xlim = 3000
+xlim = 2500
 
 
 #Plummer

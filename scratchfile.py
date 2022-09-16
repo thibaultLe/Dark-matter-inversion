@@ -11,7 +11,7 @@ from matplotlib.pylab import plt
 import orbitModule
 
 # #Amount of dark matter shells
-N = 5
+N = 10
 
 # #Max x limit (in AU)
 xlim = 2500
@@ -113,41 +113,51 @@ xlim = 2500
 # plt.legend()
 
 
-# orbitModule.lossLandscape()
-# print('\007')
+orbitModule.lossLandscape()
+print('\007')
 
 
-mis,ris = orbitModule.get_BahcallWolf_DM(N, xlim)
-# mis,ris = orbitModule.get_Plummer_DM(N, xlim)
+# mis,ris = orbitModule.get_BahcallWolf_DM(N, xlim)
 
-dens = []
-for i in range(len(ris)):
-    dens.append(mis[i]/(4*np.pi*(ris[i]**3)/3))
+# reconmis = [0.00011450722028502776, 3.1664071818312616e-05, 8.678029175476269e-05, 0.00019192551547112636, 0.0001808776253833591, 4.195883089591853e-05, 0.00018222791123292516, 0.00010627233736063953, 6.358803232853766e-05, 0.00018103342841521746]
+# # mis,ris = orbitModule.get_Plummer_DM(N, xlim)
 
-plt.figure()
-plt.scatter(ris,mis,label='BahcallWolf')
+# ris = np.array(orbitModule.get_DM_distances(N, 2500))
 
-rp = 119.52867
-ra = 1948.96214
-plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
-plt.axvline(ra,linestyle='--',color='black')
-plt.ylabel('Mass [MBH masses]')
-plt.xlabel('Distance from MBH [AU]')
+# vols = 4*np.pi*(ris**3)/3
+# for i in range(1,len(vols)):
+#     vols[i] = vols[i] - vols[i-1]
 
-plt.legend()
+# plt.figure()
+# plt.scatter(ris,mis,label='BahcallWolf')
+
+# rp = 119.52867
+# ra = 1948.96214
+# plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
+# plt.axvline(ra,linestyle='--',color='black')
+# plt.ylabel('Mass [MBH masses]')
+# plt.xlabel('Distance from MBH [AU]')
+
+# plt.legend()
+
+# dens = mis/vols
+# recondens = reconmis/vols
+
+# plt.figure()
+# plt.scatter(ris,dens,label='BahcallWolf')
+# plt.scatter(ris,recondens,label='Reconstructed')
+
+# rp = 119.52867
+# ra = 1948.96214
+# plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
+# plt.axvline(ra,linestyle='--',color='black')
+# plt.ylabel('Density [MBH masses/(AU³)')
+# plt.xlabel('Distance from MBH [AU]')
+# plt.title('Density')
+
+# plt.legend()
 
 
-plt.figure()
-plt.scatter(ris,dens,label='BahcallWolf')
-
-rp = 119.52867
-ra = 1948.96214
-plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
-plt.axvline(ra,linestyle='--',color='black')
-plt.ylabel('Density [MBH masses/(AU³)')
-plt.xlabel('Distance from MBH [AU]')
-
-plt.legend()
 
 # truelosses = orbitModule.lossesForDifferentNoiseProfiles(mis)
 

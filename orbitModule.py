@@ -209,7 +209,7 @@ def get_Sinusoidal_DM(N,xlim):
     """
     mis, ris = get_Plummer_DM(N, xlim)
     avg = np.repeat(np.mean(mis),N)
-    mis = 2e-5*np.sin(np.array(ris)/200) + avg*3/4
+    mis = 3e-5*np.sin(np.array(ris)/350 + 200) + avg*4/5
     
     return mis, ris
 
@@ -556,7 +556,7 @@ def buildTaylorIntegrator(PNCORR,N,include_variational_eqs=True,compact_mode = F
         #Speed of light (in m/s, then converted) ~= 4.85 AU / 40 minutes
         c = 299792458 * T_0 / D_0
         #Constant that dictates steepness of sigmoid
-        k = 0.1
+        k = 0.01
         
         
         
@@ -820,7 +820,7 @@ def simulateOrbitsCartesian(PNCORRECTION,IC,mis,ris,t_grid):
     return rx,ry,rz, vx * D_0 / T_0, vy * D_0 / T_0, vz * D_0 / T_0
 
 
-def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTESIANOBS=True,optimizer='ADAM'):
+def corrector(ta, x0, DMm0, obs, t_obs, alpha, m, v, t,CARTESIANOBS=True,optimizer='ADAM'):
     """
     Performs 1 iteration of a gradient descent algorithm that simulates an orbit from given initial conditions and DM distribution. 
     The result is a new tentative x0 and DM0 that should result in a closer observation.
@@ -840,12 +840,6 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
         observation times tj
     alpha : float
         Learning rate for Adam.
-    beta1 : float
-        Exponential decay rate for the 1st moment estimates.
-    beta2 : float
-        Exponential decay rate for the 2nd moment estimates.
-    eps : float
-        A small constant for numerical stability.
     m : list of floats
         1st moment estimates.
     v : list of floats
@@ -885,7 +879,6 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
         OBS3 = True
     
     
-    
     #Reset the state
     ta.state[:] = np.append(x0,np.array(variationalEqsInitialConditions(N)))
     ta.pars[:N] = DMm0
@@ -917,18 +910,6 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
     gradx0 = np.zeros((1,6))
     gradDM0 = np.zeros((1,N))
     
-    
-    
-    ### 
-    # gradplot = np.zeros((1,N))
-    
-    # NF = 1e-1
-    # M_0, D_0, T_0 = getBaseUnitConversions()
-    # sigmaPosition = arcseconds_to_AU(50 * 1e-6 * NF) # AU
-    # sigmaVelocity = 10 * 1000 * T_0 / D_0 * NF  # km/s -> m/s -> our velocity units
-    
-    # weights = [1/sigmaPosition, 1/sigmaPosition, 1/sigmaVelocity]
-    ###
     
     
     varlist = ["p", "e", "i", "om", "w", "f"]
@@ -963,11 +944,6 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
             gradx0 = gradx0 + (2 * difference[oj] @ dobsdx @ Phi ).reshape(1,-1)[0]
             gradDM0 = gradDM0 + (2 * difference[oj] @ dobsdx @ Psi ).reshape(1,-1)[0]
             
-            # weightedDiffs = difference[oj]
-            # for i in range(len(weightedDiffs)):
-            #     weightedDiffs[i] = weights[i] * difference[oj][i]
-            
-            # gradplot = gradplot + (2 * weightedDiffs @ dobsdx @ Psi ).reshape(1,-1)[0]
         else:
             gradx0 = gradx0 + (2 * difference[oj] @ Phi ).reshape(1,-1)[0]
             gradDM0 = gradDM0 + (2 * difference[oj] @ Psi ).reshape(1,-1)[0]
@@ -1068,6 +1044,13 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
         
     if optimizer == 'ADAM':
         #Adam optimizer:
+            
+        # factor for average gradient
+        beta1 = 0.9
+        # factor for average squared gradient
+        beta2 = 0.999
+        #Precision
+        eps = 1e-8
         
         m = beta1 * m + (1.0 - beta1) * grad
         v = beta2 * v + (1.0 - beta2) * grad**2
@@ -1153,7 +1136,7 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
             x_new = chosenX
             DM_new = chosenDM
             
-    else:
+    else: #optimizer == 'GRAD'
         # Basic gradient descent:
         delta = - alpha * grad
         delta = delta.reshape(1,-1)[0]
@@ -1167,213 +1150,228 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, beta1, beta2, eps, m, v, t,CARTES
         if DM_new[i] < 0:
             DM_new[i] = 0
     
+    
+    #Monotonous density constraint:
+    # ris = np.array(get_DM_distances(N, 2500))
+    
+    # vols = 4*np.pi*(ris**3)/3
+    # for i in range(1,len(vols)):
+    #     vols[i] = vols[i] - vols[i-1]
+    
+    # for i in range(1,len(DM_new)):
+    #     constr = vols[i]*DM_new[i-1]/vols[i-1]
+    #     if DM_new[i] > constr:
+    #         DM_new[i] = constr
+    
+    # dens = DM_new/vols
+    
     #TODO: Don't allow initial conditions to go past confidence interval of measurements
     
      
-    return ta, x_new, DM_new, simulatedlist, m, v
+    return ta, x_new, DM_new, m, v
 
+# @Deprecated: Calculated the variance, but is not interpretable
+# def getModelUncertainty(x0, DM, t_obs, noisefactor = 1):
+#     """
+#     Returns the model uncertainty for the given dark matter masses and initial conditions
 
-def getModelUncertainty(x0, DM, t_obs, noisefactor = 1):
-    """
-    Returns the model uncertainty for the given dark matter masses and initial conditions
+#     Parameters
+#     ----------
+#     x0 : list of floats
+#         the initial conditions.
+#     DM : list of floats
+#         the dark matter masses.
+#     t_obs : list of floats
+#         the observation times.
+#     noisefactor : float
+#         a multiplicative factor to increase/reduce the noise
 
-    Parameters
-    ----------
-    x0 : list of floats
-        the initial conditions.
-    DM : list of floats
-        the dark matter masses.
-    t_obs : list of floats
-        the observation times.
-    noisefactor : float
-        a multiplicative factor to increase/reduce the noise
+#     Returns
+#     -------
+#     variance_x0 : list of floats
+#         The variance of the initial conditions.
+#     variance_DM : list of floats
+#         The variance of the dark matter masses.
 
-    Returns
-    -------
-    variance_x0 : list of floats
-        The variance of the initial conditions.
-    variance_DM : list of floats
-        The variance of the dark matter masses.
+#     """
+#     N = len(DM)
+    
+#     #Reset the state
+#     ta = buildTaylorIntegrator(True, N, LOAD_PICKLE=True)
+#     ta.state[:] = np.append(x0,np.array(variationalEqsInitialConditions(N)))
+#     ta.pars[:N] = DM
+#     ta.pars[N:] = get_DM_distances(N, xlim=2500)
+#     ta.time = 0
+#     #Simulate ta from initial guess (t=0) until t_obs
+#     out = ta.propagate_grid(t_obs)
+    
+#     orbparamvalues = np.asarray(out[4][:,[0,1,2,3,4,5]])
+    
+#     Phis = np.asarray(out[4][:,6:6+36])
+    
+#     Psis = np.asarray(out[4][:,6+36:])
+    
+    
+#     M_0, D_0, T_0 = getBaseUnitConversions()
+#     sigmaPosition = arcseconds_to_AU(50 * 1e-6 * noisefactor) # AU
+#     sigmaVelocity = 10 * 1000 * T_0 / D_0 * noisefactor  # km/s -> m/s -> our velocity units
+    
+#     weights = [1/sigmaPosition**2, 1/sigmaPosition**2, 1/sigmaVelocity**2]
+    
+#     # M_0, D_0, T_0 = getBaseUnitConversions()
+#     # sigmaPosition = 50 * noisefactor # AU
+#     # sigmaVelocity = 10 * noisefactor # km/s -> m/s -> our velocity units
+#     # weights = [1/(sigmaPosition**2), 1/(sigmaPosition**2), 1/(sigmaVelocity**2)]
+    
+    
+#     variance_x0 = np.zeros((1,6))
+#     variance_DM = np.zeros((1,N))
+    
+#     varlist = ["p", "e", "i", "om", "w", "f"]
+#     derobsdx = cartesianConversionGradient()
+#     #Iterate over observations:
+#     for oj in range(len(t_obs)):
+        
+#         Phi = Phis[oj].reshape((6,6))
+#         Psi = Psis[oj].reshape((6,N))
+        
+#         #Need to multiply by gradient of observed cartesian vs orbital parameters
+#         valuelist = orbparamvalues[oj]
+#         peixyzDict = dict(zip(varlist, valuelist))
+        
+#         dobsdx = []
+#         #OBS3 -> take x,y and vz instead of all 6
+#         for i in [0,1,5]:
+#             for j in range(6):
+#                 dobsdx.append(hy.eval(derobsdx[i*6+j],peixyzDict))
+#         dobsdx = np.array(dobsdx).reshape((3,6))
+        
+#         #Square the matrices element-wise
+#         # dobsdx = np.square(dobsdx)
+#         # Phi = np.square(Phi)
+#         # Psi = np.square(Psi)
+        
+#         # varx0 = dobsdx @ Phi
+#         # varDM = dobsdx @ Psi
+#         varx0 = np.square(dobsdx @ Phi)
+#         varDM = np.square(dobsdx @ Psi)
+        
+        
+#         #Diffs: [AU] [AU] [AU/T_0]
+#         # if oj == 24:
+#         #     print(varDM[0])
+#         # varDM[0] = 1e6*(AU_to_arcseconds(varDM[0]))
+#         # varDM[1] = 1e6*(AU_to_arcseconds(varDM[1]))
+#         # varDM[2] = varDM[2] * D_0 / (T_0 * 1000)
+        
+#         # print(varDM[0])
+#         # if oj == 24:
+#         #     print(varDM[0])
+        
+#         #Calculate gradient wrt initial conditions (phi) and dark matter masses (psi)
+#         variance_x0 = variance_x0 + (weights @ varx0).reshape(1,-1)[0]
+#         variance_DM = variance_DM + (weights @ varDM).reshape(1,-1)[0]
+        
+#         #Calculate gradient wrt initial conditions (phi) and dark matter masses (psi)
+#         # variance_x0 = variance_x0 + (weights @ dobsdx @ Phi).reshape(1,-1)[0]
+#         # variance_DM = variance_DM + (weights @ dobsdx @ Psi).reshape(1,-1)[0]
+        
+#         # if oj == 24:
+#         #     print(weights)
+#         #     print(dobsdx @ Psi)
+#     # print(variance_x0)
+#     # print(variance_DM)
+    
+#     # variance_x0 = np.square(variance_x0)
+#     # variance_DM = np.square(variance_DM)
+    
+    
+#     # return np.sqrt(1/variance_x0[0]), np.sqrt(1/variance_DM[0])
+#     return 1/np.sqrt(variance_x0[0]), 1/np.sqrt(variance_DM[0])
 
-    """
-    N = len(DM)
+#@Deprecated: Changes each mass until Chi^2 changes by 1
+# def getParameterUncertainty(ta,ic_guess,dm_guess,obslist):
+#     origGfit = getGoodnessOfFit(ta, ic_guess, dm_guess, obslist.copy())
     
-    #Reset the state
-    ta = buildTaylorIntegrator(True, N, LOAD_PICKLE=True)
-    ta.state[:] = np.append(x0,np.array(variationalEqsInitialConditions(N)))
-    ta.pars[:N] = DM
-    ta.pars[N:] = get_DM_distances(N, xlim=2500)
-    ta.time = 0
-    #Simulate ta from initial guess (t=0) until t_obs
-    out = ta.propagate_grid(t_obs)
+#     N = len(dm_guess)
+#     paramUncertaintiesMax = N*[0]
+#     paramUncertaintiesMin = N*[0]
     
-    orbparamvalues = np.asarray(out[4][:,[0,1,2,3,4,5]])
-    
-    Phis = np.asarray(out[4][:,6:6+36])
-    
-    Psis = np.asarray(out[4][:,6+36:])
-    
-    
-    M_0, D_0, T_0 = getBaseUnitConversions()
-    sigmaPosition = arcseconds_to_AU(50 * 1e-6 * noisefactor) # AU
-    sigmaVelocity = 10 * 1000 * T_0 / D_0 * noisefactor  # km/s -> m/s -> our velocity units
-    
-    weights = [1/sigmaPosition**2, 1/sigmaPosition**2, 1/sigmaVelocity**2]
-    
-    # M_0, D_0, T_0 = getBaseUnitConversions()
-    # sigmaPosition = 50 * noisefactor # AU
-    # sigmaVelocity = 10 * noisefactor # km/s -> m/s -> our velocity units
-    # weights = [1/(sigmaPosition**2), 1/(sigmaPosition**2), 1/(sigmaVelocity**2)]
-    
-    
-    variance_x0 = np.zeros((1,6))
-    variance_DM = np.zeros((1,N))
-    
-    varlist = ["p", "e", "i", "om", "w", "f"]
-    derobsdx = cartesianConversionGradient()
-    #Iterate over observations:
-    for oj in range(len(t_obs)):
+#     for n in range(N):
+#         alphas = np.logspace(-2,0,20)
         
-        Phi = Phis[oj].reshape((6,6))
-        Psi = Psis[oj].reshape((6,N))
+#         # print(1+alphas)
+#         gfitMaxs = []
+#         gfitMins = []
+#         bestMaxFound = False
+#         bestMinFound = False
         
-        #Need to multiply by gradient of observed cartesian vs orbital parameters
-        valuelist = orbparamvalues[oj]
-        peixyzDict = dict(zip(varlist, valuelist))
-        
-        dobsdx = []
-        #OBS3 -> take x,y and vz instead of all 6
-        for i in [0,1,5]:
-            for j in range(6):
-                dobsdx.append(hy.eval(derobsdx[i*6+j],peixyzDict))
-        dobsdx = np.array(dobsdx).reshape((3,6))
-        
-        #Square the matrices element-wise
-        # dobsdx = np.square(dobsdx)
-        # Phi = np.square(Phi)
-        # Psi = np.square(Psi)
-        
-        # varx0 = dobsdx @ Phi
-        # varDM = dobsdx @ Psi
-        varx0 = np.square(dobsdx @ Phi)
-        varDM = np.square(dobsdx @ Psi)
-        
-        
-        #Diffs: [AU] [AU] [AU/T_0]
-        # if oj == 24:
-        #     print(varDM[0])
-        # varDM[0] = 1e6*(AU_to_arcseconds(varDM[0]))
-        # varDM[1] = 1e6*(AU_to_arcseconds(varDM[1]))
-        # varDM[2] = varDM[2] * D_0 / (T_0 * 1000)
-        
-        # print(varDM[0])
-        # if oj == 24:
-        #     print(varDM[0])
-        
-        #Calculate gradient wrt initial conditions (phi) and dark matter masses (psi)
-        variance_x0 = variance_x0 + (weights @ varx0).reshape(1,-1)[0]
-        variance_DM = variance_DM + (weights @ varDM).reshape(1,-1)[0]
-        
-        #Calculate gradient wrt initial conditions (phi) and dark matter masses (psi)
-        # variance_x0 = variance_x0 + (weights @ dobsdx @ Phi).reshape(1,-1)[0]
-        # variance_DM = variance_DM + (weights @ dobsdx @ Psi).reshape(1,-1)[0]
-        
-        # if oj == 24:
-        #     print(weights)
-        #     print(dobsdx @ Psi)
-    # print(variance_x0)
-    # print(variance_DM)
-    
-    # variance_x0 = np.square(variance_x0)
-    # variance_DM = np.square(variance_DM)
-    
-    
-    # return np.sqrt(1/variance_x0[0]), np.sqrt(1/variance_DM[0])
-    return 1/np.sqrt(variance_x0[0]), 1/np.sqrt(variance_DM[0])
-
-
-def getParameterUncertainty(ta,ic_guess,dm_guess,obslist):
-    origGfit = getGoodnessOfFit(ta, ic_guess, dm_guess, obslist.copy())
-    
-    N = len(dm_guess)
-    paramUncertaintiesMax = N*[0]
-    paramUncertaintiesMin = N*[0]
-    
-    for n in range(N):
-        alphas = np.logspace(-2,0,20)
-        
-        # print(1+alphas)
-        gfitMaxs = []
-        gfitMins = []
-        bestMaxFound = False
-        bestMinFound = False
-        
-        for i in range(len(alphas)):
-            x_new = ic_guess.copy()
-            DM_new = dm_guess.copy() 
-            DM_new[n] = DM_new[n] * (1+alphas[i])
-            print(n, alphas[i])
-            gfitMax = getGoodnessOfFit(ta, x_new, DM_new, obslist.copy())
+#         for i in range(len(alphas)):
+#             x_new = ic_guess.copy()
+#             DM_new = dm_guess.copy() 
+#             DM_new[n] = DM_new[n] * (1+alphas[i])
+#             print(n, alphas[i])
+#             gfitMax = getGoodnessOfFit(ta, x_new, DM_new, obslist.copy())
             
-            x_new = ic_guess.copy()
-            DM_new = dm_guess.copy() 
-            DM_new[n] = DM_new[n] * (1-alphas[i])
-            gfitMin = getGoodnessOfFit(ta, x_new, DM_new, obslist.copy())
+#             x_new = ic_guess.copy()
+#             DM_new = dm_guess.copy() 
+#             DM_new[n] = DM_new[n] * (1-alphas[i])
+#             gfitMin = getGoodnessOfFit(ta, x_new, DM_new, obslist.copy())
             
-            if gfitMax > origGfit + 1 or i == len(alphas) - 1:
-                if not bestMaxFound:
-                    paramUncertaintiesMax[n] = dm_guess[n] * (1+alphas[i]) - dm_guess[n]
+#             if gfitMax > origGfit + 1 or i == len(alphas) - 1:
+#                 if not bestMaxFound:
+#                     paramUncertaintiesMax[n] = dm_guess[n] * (1+alphas[i]) - dm_guess[n]
                     
-                    print(1+alphas[i], 'gfit:',gfitMax)
-                    bestMaxFound = True
+#                     print(1+alphas[i], 'gfit:',gfitMax)
+#                     bestMaxFound = True
                 
-            if gfitMin > origGfit + 1 or i == len(alphas) - 1:
-                if not bestMinFound:
-                    paramUncertaintiesMin[n] = dm_guess[n] * (1-alphas[i]) - dm_guess[n]
+#             if gfitMin > origGfit + 1 or i == len(alphas) - 1:
+#                 if not bestMinFound:
+#                     paramUncertaintiesMin[n] = dm_guess[n] * (1-alphas[i]) - dm_guess[n]
                     
-                    print(1+alphas[i], 'gfit:',gfitMin)
-                    bestMinFound = True
+#                     print(1+alphas[i], 'gfit:',gfitMin)
+#                     bestMinFound = True
                 
-            gfitMaxs.append(gfitMax)
-            gfitMins.append(gfitMin)
+#             gfitMaxs.append(gfitMax)
+#             gfitMins.append(gfitMin)
     
     
-    paramUncertaintiesMax = np.abs(paramUncertaintiesMax)
-    paramUncertaintiesMin = np.abs(paramUncertaintiesMin)
+#     paramUncertaintiesMax = np.abs(paramUncertaintiesMax)
+#     paramUncertaintiesMin = np.abs(paramUncertaintiesMin)
     
     
-    # plt.figure()
-    # plt.plot(alphas,np.array(gfitMaxs)-1,label='Mascon 1')
-    # plt.hlines(1,alphas[0],alphas[-1])
-    # plt.xscale('log')
-    # plt.yscale('log')
-    # plt.xlabel('Parameter difference max')
-    # plt.ylabel('Goodness of fit')
-    # plt.legend()
+#     # plt.figure()
+#     # plt.plot(alphas,np.array(gfitMaxs)-1,label='Mascon 1')
+#     # plt.hlines(1,alphas[0],alphas[-1])
+#     # plt.xscale('log')
+#     # plt.yscale('log')
+#     # plt.xlabel('Parameter difference max')
+#     # plt.ylabel('Goodness of fit')
+#     # plt.legend()
     
-    # plt.figure()
-    # plt.plot(alphas,np.array(gfitMins)-1,label='Mascon 1')
-    # plt.hlines(1,alphas[0],alphas[-1])
-    # plt.xscale('log')
-    # plt.yscale('log')
-    # plt.xlabel('Parameter difference min')
-    # plt.ylabel('Goodness of fit')
-    # plt.legend()
+#     # plt.figure()
+#     # plt.plot(alphas,np.array(gfitMins)-1,label='Mascon 1')
+#     # plt.hlines(1,alphas[0],alphas[-1])
+#     # plt.xscale('log')
+#     # plt.yscale('log')
+#     # plt.xlabel('Parameter difference min')
+#     # plt.ylabel('Goodness of fit')
+#     # plt.legend()
     
-    uncertainties = np.array([paramUncertaintiesMin,paramUncertaintiesMax]).reshape((2,N))
-    # print(uncertainties)
-    # uncertainties = [paramUncertaintiesMax[0],paramUncertaintiesMin[0]]
-    # print(uncertainties)
-    ris = get_DM_distances(N, xlim=2500)
-    plt.figure()
-    mis,ris = get_BahcallWolf_DM(N, xlim=2500)
-    plt.scatter(ris,mis,label='True')
-    plt.scatter(ris,dm_guess,label='Reconstructed',color='orange')
-    plt.errorbar(ris,dm_guess,uncertainties,capsize=5,label='1 sigma',fmt='none',color='orange')
-    plt.legend()
-    plt.title('Reduced Chi^2 sensitivity to individual mascons')
+#     uncertainties = np.array([paramUncertaintiesMin,paramUncertaintiesMax]).reshape((2,N))
+#     # print(uncertainties)
+#     # uncertainties = [paramUncertaintiesMax[0],paramUncertaintiesMin[0]]
+#     # print(uncertainties)
+#     ris = get_DM_distances(N, xlim=2500)
+#     plt.figure()
+#     mis,ris = get_BahcallWolf_DM(N, xlim=2500)
+#     plt.scatter(ris,mis,label='True')
+#     plt.scatter(ris,dm_guess,label='Reconstructed',color='orange')
+#     plt.errorbar(ris,dm_guess,uncertainties,capsize=5,label='1 sigma',fmt='none',color='orange')
+#     plt.legend()
+#     plt.title('Reduced Chi^2 sensitivity to individual mascons')
     
-    return uncertainties
+#     return uncertainties
     
     
 
@@ -1384,8 +1382,6 @@ def getGoodnessOfFit(ta, ic_guess, dm_guess, obslist):
     observationlist = np.delete(obslist, [0], axis=1)    
 
     t_grid = convertYearsTimegridToOurFormat(timegrid)
-    
-    
     
     N = len(dm_guess)
     #TODO: add as parameter/refactor noise dynamics
@@ -1425,8 +1421,8 @@ def getGoodnessOfFit(ta, ic_guess, dm_guess, obslist):
         
     # print('Goodness of fit =', gfit/Nfree)
     
-    return gfit/Nfree
-    # return gfit
+    # return gfit/Nfree
+    return gfit
 
 
 
@@ -1513,20 +1509,13 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     m = np.array([0.0 for _ in range(6+N)])
     v = np.array([0.0 for _ in range(6+N)])
     
-    
-    # factor for average gradient
-    beta1 = 0.9
-    # factor for average squared gradient
-    beta2 = 0.999
-    #Precision
-    eps = 1e-8
-    
+    #Choose your favorite optimizer:
     optimizer = 'ADAM'
     # optimizer = 'LINE'
     # optimizer = 'GRAD'
     
     #If batch size is < 1, all observations are used each iteration
-    batch_size = 50
+    batch_size = 0
     
     BATCHED = False
     if batch_size > 0:
@@ -1537,14 +1526,11 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     #batch 1, 1e-6, 4000, Adam, works great
     #all obs, 1e-5, 3000, Adam, gets very close to 0, but 500 iters gets close enough
-    # iterations = 886
-    # iterations = 1
-    iterations = 20
-    #TODO: End when not getting better
+    iterations = 100
+    #TODO: Decide on stop criterion
     
     ICiterations = np.array([ic_guess])
     DMiterations = np.array([dm_guess])
-    obsiterations = np.array([])
     
     # print(N,dm_guess)
     # ta = buildTaylorIntegrator(True, N,compact_mode=True,LOAD_PICKLE=False)
@@ -1576,27 +1562,26 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
             # Stochastic batched gradient descent:
             chosenbatchindices = np.sort(np.random.choice(observationlist.shape[0],size=batch_size,replace=False))
             
-            ta, _, dm_guess,sim,m,v = corrector(ta, ic_guess,dm_guess, \
-                  observationlist[chosenbatchindices,:], t_grid[chosenbatchindices], alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS,optimizer)
+            ta, ic_guess, dm_guess,m,v = corrector(ta, ic_guess,dm_guess, \
+                  observationlist[chosenbatchindices,:], t_grid[chosenbatchindices], alpha,m,v,t,CARTESIANOBS,optimizer)
         else:
             #Using all observations every iteration
-            ta, _, dm_guess,sim,m,v = corrector(ta, ic_guess,dm_guess, \
-                  observationlist, t_grid, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS,optimizer)
+            ta, ic_guess, dm_guess,m,v = corrector(ta, ic_guess,dm_guess, \
+                  observationlist, t_grid, alpha,m,v,t,CARTESIANOBS,optimizer)
             
             
             
         #Don't allow initial conditions to change:
-        # ta, _ ,dm_guess,sim,m,v = corrector(ta, ic_guess,dm_guess, \
-        #       observationlist, t_grid, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS,optimizer)
+        # ta, _ ,dm_guess,m,v = corrector(ta, ic_guess,dm_guess, \
+        #       observationlist, t_grid, alpha,m,v,t,CARTESIANOBS,optimizer)
         
         
         #Don't allow dark matter to change:
-        # ta, ic_guess ,_,sim,m,v = corrector(ta, ic_guess,dm_guess, \
-        #       observationlist, t_grid, alpha,beta1,beta2,eps,m,v,t,CARTESIANOBS,optimizer)
+        # ta, ic_guess ,_,m,v = corrector(ta, ic_guess,dm_guess, \
+        #       observationlist, t_grid, alpha,m,v,t,CARTESIANOBS,optimizer)
             
         ICiterations = np.append(ICiterations,ic_guess)
         DMiterations = np.append(DMiterations,dm_guess)
-        obsiterations = np.append(obsiterations,sim)
         
     
     #1 last simulation of the final guess:
@@ -1612,8 +1597,6 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
             finalsim = np.array(finalsim)
             finalsim =  finalsim[[0,1,-1],:]
         finalsim = np.transpose(finalsim)
-    if not BATCHED:
-        obsiterations = np.append(obsiterations,finalsim)
     
     
     #1 initial simulation of the first guess:
@@ -1633,12 +1616,6 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     #Reshape
     ICiterations = ICiterations.reshape((iterations+1,6))  
     DMiterations = DMiterations.reshape((iterations+1,N))  
-    if not BATCHED:
-        #Only keep all iterations of observations if not using batched SGD
-        obsiterations = obsiterations.reshape((iterations+1,len(observationlist),len(observationlist[0])))    
-    else:
-        obsiterations = obsiterations.reshape((iterations,batch_size,len(observationlist[0])))    
-    
     print('Total time:', round((time.time()-start),2),'seconds')
     
     # print("")
@@ -1671,47 +1648,12 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     # plt.title("Difference with true DM distribution")
     
     
-    #Convergence of observation:
-    # absdiffs = [[difx obs 1, dify obs1, difz obs1] , [difx obs 2, dify obs2, difz obs2] 
-    # print(obsiterations)
-    # print(observationlist)
-    # print(np.subtract(obsiterations,np.array((iterations+1)*[observationlist])))
     
+    print('Goodness of fit before training =', getGoodnessOfFit(ta,ICiterations[0],DMiterations[0],obslist))
+    print('Loss before training:',loss(ta,ICiterations[0],DMiterations[0],obslist))
+    print('Goodness of fit after training =', getGoodnessOfFit(ta,ic_guess,dm_guess,obslist))
+    print('Loss after training:',loss(ta,ic_guess,dm_guess,obslist))
     
-    fig, ((ax11,ax12,ax13,ax14)) = plt.subplots(1,4)
-    fig.set_size_inches(19,4)
-    # plt.tight_layout(pad=2,w_pad=6)
-    fig.set_tight_layout(True)
-    
-    if not BATCHED:
-        absdiffs = np.sum(abs(np.subtract(obsiterations,np.array((iterations+1)*[observationlist]))),axis=1)
-        # print(absdiffs)
-        absdiffsTotal = np.sum(absdiffs,axis = 1)**2
-        # print(absdiffsTotal)
-        # plt.figure()
-        ax11.scatter(iters,absdiffsTotal,color='blue',s=8)
-        ax11.set_yscale('log')
-        ax11.set_ylabel("Loss")
-        ax11.set_xlabel("Number of iterations")
-        ax11.set_title("Gradient descent")
-        
-        #TODO: put a better loss calculation as a graph
-        
-        print('Goodness of fit before training =', getGoodnessOfFit(ta,ICiterations[0],DMiterations[0],obslist))
-        print('Loss before training:',loss(ta,ICiterations[0],DMiterations[0],obslist))
-        print('Goodness of fit after training =', getGoodnessOfFit(ta,ic_guess,dm_guess,obslist))
-        print('Loss after training:',loss(ta,ic_guess,dm_guess,obslist))
-    
-    else:
-        losses = []
-        for i in range(len(ICiterations)):
-            losses.append(loss(ta,ICiterations[i],DMiterations[i],obslist))
-            
-        ax11.scatter(iters,losses,color='blue',s=8)
-        ax11.set_yscale('log')
-        ax11.set_ylabel("Loss")
-        ax11.set_xlabel("Number of iterations")
-        ax11.set_title("Gradient descent")
 
     
     
@@ -1732,14 +1674,23 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     # NF = 1
         
         
-        # getParameterUncertainty(ta, ic_guess.copy(), dm_guess.copy(), obslist.copy())
-    
-    
-    
+    #Can only plot X,Y and VZ differences for cartesian observations
     if CARTESIANOBS:
+        fig, ((ax11,ax12,ax13,ax14)) = plt.subplots(1,4)
+        fig.set_size_inches(19,4)
+        fig.set_tight_layout(True)
+        
+        #Plot losses:
+        losses = []
+        for i in range(len(iters)):
+            losses.append(loss(ta,ICiterations[i],DMiterations[i],obslist))
+        ax11.scatter(iters,losses,color='blue',s=8)
+        ax11.set_yscale('log')
+        ax11.set_ylabel("Loss")
+        ax11.set_xlabel("Number of iterations")
+        ax11.set_title("Gradient descent")
+        
         # plt.figure()
-        # plt.scatter(timegrid,1e6*(AU_to_arcseconds(obsiterations[:][0][:,0])-AU_to_arcseconds(observationlist[:,0])),color='lightgrey',s=8,label='Initial difference')
-        # plt.scatter(timegrid,1e6*(AU_to_arcseconds(obsiterations[:][-1][:,0])-AU_to_arcseconds(observationlist[:,0])),color='blue',s=8,label='Difference')
         ax12.scatter(timegrid,1e6*(AU_to_arcseconds(initialsim[:,0])-AU_to_arcseconds(observationlist[:,0])),color='lightgrey',s=8,label='Initial difference')
         ax12.scatter(timegrid,1e6*(AU_to_arcseconds(finalsim[:,0])-AU_to_arcseconds(observationlist[:,0])),color='blue',s=8,label='Final difference')
         ax12.plot(timegrid,len(timegrid)*[NF*50],'--',label='Precision',color='red')
@@ -1809,7 +1760,8 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     
     
-    return ic_guess, dm_guess, loss(ta,ic_guess,dm_guess,obslist)
+    
+    return ic_guess, dm_guess
 
 
 
@@ -2211,122 +2163,122 @@ def getBestBahcallFit(filename):
     
 
 
-
-def getBestBahcallMassFit(dm): 
+#Deprecated: fitting masses to reconstructed distribution 
+# def getBestBahcallMassFit(dm): 
     
-    def lossMassesBahcall(x,dm2):
-        rho0 = x[0]
-        #r0 is fixed (only 1 degree of freedom)
-        dm1, _ = get_BahcallWolf_DM(5,2500,rho0)
-        return sum(abs(np.array(dm1)-np.array(dm2)))
+#     def lossMassesBahcall(x,dm2):
+#         rho0 = x[0]
+#         #r0 is fixed (only 1 degree of freedom)
+#         dm1, _ = get_BahcallWolf_DM(5,2500,rho0)
+#         return sum(abs(np.array(dm1)-np.array(dm2)))
     
-    class ReconstructBahcall:
-        def __init__(self,dm):
-            self.dm = dm
+#     class ReconstructBahcall:
+#         def __init__(self,dm):
+#             self.dm = dm
             
-        def fitness(self,x):
-            return [lossMassesBahcall(x,self.dm)]
+#         def fitness(self,x):
+#             return [lossMassesBahcall(x,self.dm)]
         
-        def get_bounds(self):
-            lb = [1e-12]
-            ub = [1e-10]
+#         def get_bounds(self):
+#             lb = [1e-12]
+#             ub = [1e-10]
         
-            return (lb, ub)
+#             return (lb, ub)
         
     
-    pg.set_global_rng_seed(0)
+#     pg.set_global_rng_seed(0)
     
-    udp = ReconstructBahcall(dm)
-    prob = pg.problem(udp)
-    popsize = 1000
-    pop = pg.population(prob,popsize)
+#     udp = ReconstructBahcall(dm)
+#     prob = pg.problem(udp)
+#     popsize = 1000
+#     pop = pg.population(prob,popsize)
     
-    uda = pg.cmaes(1,force_bounds=True,memory=True)
+#     uda = pg.cmaes(1,force_bounds=True,memory=True)
     
-    algo = pg.algorithm(uda)
+#     algo = pg.algorithm(uda)
     
-    for i in range(1000):
-        pop = algo.evolve(pop)
+#     for i in range(1000):
+#         pop = algo.evolve(pop)
         
-        # print(pop.champion_x,pop.champion_f)
+#         # print(pop.champion_x,pop.champion_f)
     
-    print('Best Bahcall fit')
-    print(list(pop.champion_x),pop.champion_f)
+#     print('Best Bahcall fit')
+#     print(list(pop.champion_x),pop.champion_f)
     
-    plt.figure()
-    reconmis, ris = get_BahcallWolf_DM(5,2500,pop.champion_x[0])
-    lb = udp.get_bounds()[0][0]
-    ub = udp.get_bounds()[1][0]
-    lbmis, ris = get_BahcallWolf_DM(5,2500,lb)
-    ubmis, ris = get_BahcallWolf_DM(5,2500,ub)
-    plt.scatter(ris,dm,label='True')
-    plt.scatter(ris,reconmis,label='Best fit')
-    plt.plot(ris,lbmis,label='Lower bound')
-    plt.plot(ris,ubmis,label='Upper bound')
-    plt.legend()
+#     plt.figure()
+#     reconmis, ris = get_BahcallWolf_DM(5,2500,pop.champion_x[0])
+#     lb = udp.get_bounds()[0][0]
+#     ub = udp.get_bounds()[1][0]
+#     lbmis, ris = get_BahcallWolf_DM(5,2500,lb)
+#     ubmis, ris = get_BahcallWolf_DM(5,2500,ub)
+#     plt.scatter(ris,dm,label='True')
+#     plt.scatter(ris,reconmis,label='Best fit')
+#     plt.plot(ris,lbmis,label='Lower bound')
+#     plt.plot(ris,ubmis,label='Upper bound')
+#     plt.legend()
     
-    return reconmis
+#     return reconmis
 
 
     
-def getBestPlummerMassFit(dm): 
+# def getBestPlummerMassFit(dm): 
     
-    def lossMassesPlummer(x,dm2):
-        rho0 = x[0]
-        r0 = x[1]
-        dm1, _ = get_Plummer_DM(5,2500,rho0,r0)
-        # dm2, _ = get_Plummer_DM(5, 2500)
-        return sum(abs(np.array(dm1)-np.array(dm2)))
+#     def lossMassesPlummer(x,dm2):
+#         rho0 = x[0]
+#         r0 = x[1]
+#         dm1, _ = get_Plummer_DM(5,2500,rho0,r0)
+#         # dm2, _ = get_Plummer_DM(5, 2500)
+#         return sum(abs(np.array(dm1)-np.array(dm2)))
     
-    class ReconstructPlummer:
-        def __init__(self,dm):
-            self.dm = dm
+#     class ReconstructPlummer:
+#         def __init__(self,dm):
+#             self.dm = dm
             
-        def fitness(self,x):
-            return [lossMassesPlummer(x,self.dm)]
+#         def fitness(self,x):
+#             return [lossMassesPlummer(x,self.dm)]
         
-        def get_bounds(self):
-            lb = [1e-11, 1e-12]
-            ub = [1e-9, 5000] 
-            return (lb, ub)
+#         def get_bounds(self):
+#             lb = [1e-11, 1e-12]
+#             ub = [1e-9, 5000] 
+#             return (lb, ub)
     
-    pg.set_global_rng_seed(0)
+#     pg.set_global_rng_seed(0)
         
-    udp = ReconstructPlummer(dm)
-    prob = pg.problem(udp)
-    popsize = 100
-    pop = pg.population(prob,popsize)
+#     udp = ReconstructPlummer(dm)
+#     prob = pg.problem(udp)
+#     popsize = 100
+#     pop = pg.population(prob,popsize)
     
     
     
-    uda = pg.cmaes(1,force_bounds=True,memory=True)
+#     uda = pg.cmaes(1,force_bounds=True,memory=True)
     
-    algo = pg.algorithm(uda)
+#     algo = pg.algorithm(uda)
     
-    for i in range(1000):
-        pop = algo.evolve(pop)
+#     for i in range(1000):
+#         pop = algo.evolve(pop)
         
-        # print(pop.champion_x,pop.champion_f)
+#         # print(pop.champion_x,pop.champion_f)
     
-    print('Best Plummer fit')
-    print(list(pop.champion_x),pop.champion_f)
+#     print('Best Plummer fit')
+#     print(list(pop.champion_x),pop.champion_f)
     
-    plt.figure()
-    reconmis, ris = get_Plummer_DM(5,2500,pop.champion_x[0],pop.champion_x[1])
+#     plt.figure()
+#     reconmis, ris = get_Plummer_DM(5,2500,pop.champion_x[0],pop.champion_x[1])
     
-    lb = udp.get_bounds()[0][0]
-    ub = udp.get_bounds()[1][0]
-    lbmis, ris = get_Plummer_DM(5,2500,lb)
-    ubmis, ris = get_Plummer_DM(5,2500,ub)
+#     lb = udp.get_bounds()[0][0]
+#     ub = udp.get_bounds()[1][0]
+#     lbmis, ris = get_Plummer_DM(5,2500,lb)
+#     ubmis, ris = get_Plummer_DM(5,2500,ub)
     
-    plt.scatter(ris,dm,label='True')
-    plt.scatter(ris,reconmis,label='Best fit')
-    plt.plot(ris,lbmis,label='Lower bound')
-    plt.plot(ris,ubmis,label='Upper bound')
-    plt.legend()
+#     plt.scatter(ris,dm,label='True')
+#     plt.scatter(ris,reconmis,label='Best fit')
+#     plt.plot(ris,lbmis,label='Lower bound')
+#     plt.plot(ris,ubmis,label='Upper bound')
+#     plt.legend()
 
 
-    return reconmis
+#     return reconmis
 
 
 def lossesForDifferentNoiseProfiles(dm_guess):
@@ -2425,7 +2377,7 @@ def lossLandscape():
         
     filename = 'Datasets/BahcallWolf_N={}.txt'.format(N)
     # filename = 'Datasets/Plummer_N={}.txt'.format(N)
-    obslist = getObservations(filename,ADD_NOISE=True,noisefactor=1)
+    obslist = getObservations(filename,ADD_NOISE=True,noisefactor=1e-1)
     
     mis,ris = get_BahcallWolf_DM(N, xlim)
     # import itertools
@@ -2439,7 +2391,7 @@ def lossLandscape():
     # print(len(dms))
         
     dms = []
-    for i in range(100000):
+    for i in range(10):
         # dm_guess_new = Nf*[0]
         np.random.seed(i)
         noise = np.random.normal(0,0.0002,N)
@@ -2455,7 +2407,6 @@ def lossLandscape():
     trueloss = obsloss(ta, ic_guess, mis, obslist)
     print('True loss:',trueloss)
     
-    #TODO: loss analysis, 1 stddev of loss
     
     start = time.time()
     
@@ -2523,11 +2474,12 @@ def lossLandscape():
     
     # lossbands = np.linspace(cmin+sigma,cmax,nbrOfBands)
     lossbands = np.linspace(cmin,cmax-sigma,nbrOfBands)
-    print(lossbands)
+    # lossbands = [6.72,6.79,6.86,6.93,6.99]
     # lossbands = (lossbands[1:] + lossbands[:-1]) / 2
     # print(lossbands)
     crange = np.linspace(0,1,nbrOfBands+1)
     crange = (crange[1:] + crange[:-1]) / 2
+    
     
     plt.figure()
     for i in reversed(range(len(lossbands))):
@@ -2548,9 +2500,10 @@ def lossLandscape():
             
         cmap = plt.cm.get_cmap('rainbow')
 
+
         rgba = cmap(crange[i])
         # plt.plot(ris,mins,color=rgba,label='loss={}({}sig)'.format(round(losslim,2),i+1))
-        plt.plot(ris,mins,color=rgba,label='loss={}({}%)'.format(round(losslim,2),i))
+        plt.plot(ris,mins,color=rgba,label='loss<={}({}%)'.format(round(losslim,2),i))
         # plt.plot(ris,mins,color=rgba,label='loss={}'.format(round(losslim,2)))
         plt.plot(ris,maxs,color=rgba)
     
@@ -2562,7 +2515,8 @@ def lossLandscape():
     plt.xlabel('Distance from MBH [AU]')
     rp = 119.52867
     ra = 1948.96214
-    plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    # plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    plt.axvline(rp,linestyle='--',color='black')
     plt.axvline(ra,linestyle='--',color='black')
     
     plt.scatter(ris,mis,label='True,loss={}'.format(round(trueloss,2)))

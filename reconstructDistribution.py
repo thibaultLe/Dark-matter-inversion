@@ -17,7 +17,7 @@ n = 1000
 #X points:
 rDM = np.linspace(0,xlim,n)
 #Sigmoid steepness factor
-k = 0.1
+k = 0.01
 #Amount of dark matter shells
 N = 10
 
@@ -40,7 +40,7 @@ def getEnclosedMass(mis):
     
     return sumRis
 
-def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=True):
+def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=False):
     rp = 119.52867
     ra = 1948.96214
     
@@ -51,8 +51,8 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=True):
     #Plot masses:
     # plt.figure()
     ax11.scatter(ris,mis,label='True')
-    ax11.scatter(ris,dm_guess,label='Initial guess',color='grey',alpha=0.5)
     ax11.scatter(ris,reconmis,label='Reconstructed')
+    ax11.scatter(ris,dm_guess,label='Initial guess',color='lightgrey',alpha=1)
     
     # misPlum,_ = orbitModule.get_Plummer_DM(N, xlim)
     # ax11.scatter(ris,misPlum,label='Plummer')
@@ -61,7 +61,7 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=True):
     ax11.axvline(ra,linestyle='--',color='black')
     ax11.set_xlabel("Distance from MBH [AU]")
     ax11.set_ylabel("Mass [MBH masses]")
-    ax11.set_title('Reconstructed dark matter distribution')
+    ax11.set_title('Mass')
     # ax11.legend()
     
 
@@ -110,9 +110,9 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=True):
     ax12.set_xlabel('Distance from MBH [AU]')
     ax12.set_ylabel('Enclosed mass [MBH masses]')
     # plt.plot(rDM,enclosedMassPlum(rDM),label='Plum model')
-    ax12.plot(rDM,sumRisInit,label='Initial guess',color='grey')
     ax12.plot(rDM,sumRisTrue,label='True')
     ax12.plot(rDM,sumRis,label='Reconstructed')
+    ax12.plot(rDM,sumRisInit,label='Initial guess',color='grey')
     ax12.axvline(rp,linestyle='--',label='rp and ra',color='black')
     ax12.axvline(ra,linestyle='--',color='black')
     ax12.legend()
@@ -121,13 +121,38 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=True):
     
     #Plot difference in enclosed mass
     # plt.figure()
-    ax13.set_xlabel('Distance from MBH [AU]')
-    ax13.set_ylabel('Enclosed mass [MBH masses]')
-    ax13.plot(rDM,sumRis - sumRisTrue,label='Reconstructed - True')
+    # ax13.set_xlabel('Distance from MBH [AU]')
+    # ax13.set_ylabel('Enclosed mass [MBH masses]')
+    # ax13.plot(rDM,sumRis - sumRisTrue,label='Reconstructed - True')
+    # ax13.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    # ax13.axvline(ra,linestyle='--',color='black')
+    # ax13.legend()
+    # ax13.set_title('Difference in enclosed mass')
+    
+    
+    #Plot density:
+    vols = 4*np.pi*(np.array(ris)**3)/3
+    for i in range(1,len(vols)):
+        vols[i] = vols[i] - vols[i-1]
+    
+    dens = mis/vols
+    recondens = reconmis/vols
+    initdens = dm_guess/vols
+    
+    ax13.scatter(ris,dens,label='True')
+    ax13.scatter(ris,recondens,label='Reconstructed')
+    ax13.scatter(ris,initdens,label='Initial guess',color='grey')
+    rp = 119.52867
+    ra = 1948.96214
     ax13.axvline(rp,linestyle='--',label='rp and ra',color='black')
     ax13.axvline(ra,linestyle='--',color='black')
+    ax13.set_ylabel('Density [MBH masses/(AU³)')
+    ax13.set_xlabel('Distance from MBH [AU]')
+    ax13.set_title('Density')
+    ax13.set_yscale('log')
+    ax13.set_ylim(1e-15)
+    
     ax13.legend()
-    ax13.set_title('Difference in enclosed mass')
     
 
 
@@ -279,6 +304,7 @@ def reconstructFromTrueMasses():
     
     plotInitReconTrueMasses(dm_guess,reconmis,mis)
     
+    
     # obstimes = obstimes[:2]
     # variance_x0, variance_DM = orbitModule.getModelUncertainty(reconic, reconmis, obstimes)
     
@@ -311,8 +337,8 @@ def reconstructFromTrueMasses():
 """
 
 if __name__ == "__main__":
-    reconstructAllDatasets()
-    # reconstructFromTrueMasses()
+    # reconstructAllDatasets()
+    reconstructFromTrueMasses()
     # comparePlummer_BahcallWolfReconstruction(noisefactor=1e-5)
     # comparePlummer_BahcallWolfReconstruction(noisefactor=5e-1)
     # comparePlummer_BahcallWolfReconstruction(noisefactor=1)

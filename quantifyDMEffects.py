@@ -49,6 +49,7 @@ def plotMasconsMass(N=20,k=0.1,PLUM=True):
     
     if PLUM:
         mis, ris = orbitModule.get_Plummer_DM(N, xlim)
+        mis, ris = orbitModule.get_Sinusoidal_DM(N, xlim)
     else:
         mis, ris = orbitModule.get_BahcallWolf_DM(N, xlim)
     
@@ -70,7 +71,7 @@ def plotMasconsMass(N=20,k=0.1,PLUM=True):
     plt.figure()
     plt.xlabel('Distance from MBH [AU]')
     if PLUM:
-        plt.plot(rDM,enclosedMassPlum(rDM,rho0plum),label='Plum model')
+        plt.plot(rDM,enclosedMassPlum(rDM,rho0plum),label='Plummer model')
     else:
         plt.plot(rDM,np.append(0,enclosedMassCusp(rDM[1:],rho0cusp)),label='Bahcall-wolf model')
     
@@ -91,6 +92,7 @@ def plotMasconsMass(N=20,k=0.1,PLUM=True):
     plt.axvline(ra,linestyle='--',color='black')
     plt.ylabel('Mass [MBH masses]')
     plt.xlabel('Distance from MBH [AU]')
+    plt.ylim(0)
     plt.legend()
     # plt.title('Masses of DM shells')
     
@@ -400,7 +402,8 @@ def plotDifferencePlumVsBahcall(N=100):
 """
 
 if __name__ == "__main__":
-    plotMasconsMass(N=5,k=0.1)
+    plotMasconsMass(N=5,k=0.01)
+    plotMasconsMass(N=10,k=0.01)
     # plotMasconsMass(N=5,k=0.1)
     # plotMasconsMass(N=10,k=0.005)
     # plotMasconsMass(N=1000,k=0.01,PLUM=True)

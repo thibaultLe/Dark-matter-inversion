@@ -1464,7 +1464,7 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
         print()
 
 
-def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS3 = True):
+def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS3 = True,noisefactor=0):
     """
     Reconstructs initial conditions and dark matter from given initial guesses and observations
 
@@ -1669,10 +1669,7 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
             
         
         
-        #TODO: add as parameter/refactor noise dynamics
-    NF = 1e-1
-    # NF = 1
-        
+    NF = noisefactor
         
     #Can only plot X,Y and VZ differences for cartesian observations
     if CARTESIANOBS:
@@ -1693,23 +1690,25 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
         # plt.figure()
         ax12.scatter(timegrid,1e6*(AU_to_arcseconds(initialsim[:,0])-AU_to_arcseconds(observationlist[:,0])),color='lightgrey',s=8,label='Initial difference')
         ax12.scatter(timegrid,1e6*(AU_to_arcseconds(finalsim[:,0])-AU_to_arcseconds(observationlist[:,0])),color='blue',s=8,label='Final difference')
-        ax12.plot(timegrid,len(timegrid)*[NF*50],'--',label='Precision',color='red')
-        ax12.plot(timegrid,len(timegrid)*[NF*-50],'--',color='red')
         ax12.set_ylabel("Difference with observation [µas]")
         ax12.set_xlabel("Time [years]")
         ax12.set_title("X simulated - X observed")
-        ax12.set_ylim(8*NF*-50,8*NF*50)
+        if NF != 0:
+            ax12.plot(timegrid,len(timegrid)*[NF*50],'--',label='Precision',color='red')
+            ax12.plot(timegrid,len(timegrid)*[NF*-50],'--',color='red')
+            ax12.set_ylim(8*NF*-50,8*NF*50)
         ax12.legend()
         
         # plt.figure()
         ax13.scatter(timegrid,1e6*(AU_to_arcseconds(initialsim[:,1])-AU_to_arcseconds(observationlist[:,1])),color='lightgrey',s=8,label='Initial difference')
         ax13.scatter(timegrid,1e6*(AU_to_arcseconds(finalsim[:,1])-AU_to_arcseconds(observationlist[:,1])),color='blue',s=8,label='Final difference')
-        ax13.plot(timegrid,len(timegrid)*[NF*50],'--',label='Precision',color='red')
-        ax13.plot(timegrid,len(timegrid)*[NF*-50],'--',color='red')
         ax13.set_ylabel("Difference with observation [µas]")
         ax13.set_xlabel("Time [years]")
         ax13.set_title("Y simulated - Y observed")
-        ax13.set_ylim(8*NF*-50,8*NF*50)
+        if NF != 0:
+            ax13.plot(timegrid,len(timegrid)*[NF*50],'--',label='Precision',color='red')
+            ax13.plot(timegrid,len(timegrid)*[NF*-50],'--',color='red')
+            ax13.set_ylim(8*NF*-50,8*NF*50)
         ax13.legend()
         
         if not OBS3:
@@ -1720,8 +1719,9 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
             # plt.figure()
             ax11.scatter(timegrid,1e6*(AU_to_arcseconds(initialsim[:,2])-AU_to_arcseconds(observationlist[:,2])),color='lightgrey',s=8,label='Initial difference')
             ax11.scatter(timegrid,1e6*(AU_to_arcseconds(finalsim[:,2])-AU_to_arcseconds(observationlist[:,2])),color='blue',s=8,label='Final difference')
-            ax11.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
-            ax11.plot(timegrid,len(timegrid)*[-50],'--',color='red')
+            if NF != 0:
+                ax11.plot(timegrid,len(timegrid)*[50],'--',label='Precision',color='red')
+                ax11.plot(timegrid,len(timegrid)*[-50],'--',color='red')
             ax11.set_ylabel("Difference with observation [µas]")
             ax11.set_xlabel("Time [years]")
             ax11.set_title("Z simulated - Z observed")
@@ -1730,8 +1730,9 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
             # plt.figure()
             ax12.scatter(timegrid,initialsim[:,3]* D_0 / (T_0 * 1000)-observationlist[:,3]* D_0 / (T_0 * 1000),color='lightgrey',s=8,label='Initial difference')
             ax12.scatter(timegrid,finalsim[:,3]* D_0 / (T_0 * 1000)-observationlist[:,3]* D_0 / (T_0 * 1000),color='blue',s=8,label='Final difference')
-            ax12.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
-            ax12.plot(timegrid,len(timegrid)*[-10],'--',color='red')
+            if NF != 0:
+                ax12.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
+                ax12.plot(timegrid,len(timegrid)*[-10],'--',color='red')
             ax12.set_ylabel("Difference with observation [km/s]")
             ax12.set_xlabel("Time [years]")
             ax12.set_title("VX simulated - VX observed")
@@ -1740,8 +1741,9 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
             # plt.figure()
             ax13.scatter(timegrid,initialsim[:,4]* D_0 / (T_0 * 1000)-observationlist[:,4]* D_0 / (T_0 * 1000),color='lightgrey',s=8,label='Initial difference')
             ax13.scatter(timegrid,finalsim[:,4]* D_0 / (T_0 * 1000)-observationlist[:,4]* D_0 / (T_0 * 1000),color='blue',s=8,label='Final difference')
-            ax13.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
-            ax13.plot(timegrid,len(timegrid)*[-10],'--',color='red')
+            if NF != 0:
+                ax13.plot(timegrid,len(timegrid)*[10],'--',label='Precision',color='red')
+                ax13.plot(timegrid,len(timegrid)*[-10],'--',color='red')
             ax13.set_ylabel("Difference with observation [km/s]")
             ax13.set_xlabel("Time [years]")
             ax13.set_title("VY simulated - VY observed")
@@ -1750,12 +1752,13 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
         # plt.figure()
         ax14.scatter(timegrid,initialsim[:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000),color='lightgrey',s=8,label='Initial difference')
         ax14.scatter(timegrid,finalsim[:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000),color='blue',s=8,label='Final difference')
-        ax14.plot(timegrid,len(timegrid)*[NF*10],'--',label='Precision',color='red')
-        ax14.plot(timegrid,len(timegrid)*[NF*-10],'--',color='red')
         ax14.set_ylabel("Difference with observation [km/s]")
         ax14.set_xlabel("Time [years]")
         ax14.set_title("VZ simulated - VZ observed")
-        ax14.set_ylim(8*NF*-10,8*NF*10)
+        if NF != 0:
+            ax14.plot(timegrid,len(timegrid)*[NF*10],'--',label='Precision',color='red')
+            ax14.plot(timegrid,len(timegrid)*[NF*-10],'--',color='red')
+            ax14.set_ylim(8*NF*-10,8*NF*10)
         ax14.legend()
     
     
@@ -1766,7 +1769,8 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
 
 
 
-def reconstructDistributionFromTrueMasses(PNCORRECTION,mis,ris, obstimes, ic_guess, dm_guess, CARTESIANOBS = True,OBS3 = True):
+def reconstructDistributionFromTrueMasses(PNCORRECTION,mis,ris, obstimes, ic_guess, dm_guess, CARTESIANOBS = True,OBS3 = True,
+                                          ADD_NOISE = False,noisefactor = 1,seed = 0):
     """
     Reconstructs initial conditions and dark matter from a given true DM distribution
 
@@ -1784,6 +1788,12 @@ def reconstructDistributionFromTrueMasses(PNCORRECTION,mis,ris, obstimes, ic_gue
         the initial guess for the initial conditions
     dm_guess : list of floats
         the initial guess for the dark matter masses
+    ADD_NOISE : boolean, optional
+        True if adding artificial noise to the data. The default is True.
+    seed : int, optional
+        Random seed for reproducibility. The default is 0.
+    noisefactor : float, optional
+        Factor to reduce/increase the noise below/above the standard. The default is 1.
     CARTESIANOBS : boolean, optional
         True if using cartesian observations instead of orbital parameter observations. The default is True.
     OBS3 : boolean, optional
@@ -1805,40 +1815,22 @@ def reconstructDistributionFromTrueMasses(PNCORRECTION,mis,ris, obstimes, ic_gue
     if len(mis) != len(ris):
         raise RuntimeError("Lengths of DM masses and distances does not match")
         
-    N = len(mis)
-    #TODO: disable loading from pickle, enable compact in production code (also in 1 other place)
-    ta = buildTaylorIntegrator(PNCORRECTION, N, LOAD_PICKLE=True)
-    
     np.set_printoptions(precision=5)
     
     M_0, D_0, T_0 = getBaseUnitConversions()
         
     IC = get_S2_IC()
-        
-    #Setup for observations:
-    ta.state[:6] = IC
-    ta.time = 0
-    ta.pars[:N] = mis
-    ta.pars[N:] = ris
-    out = ta.propagate_grid(obstimes)
-    
-    observationlist = np.asarray(out[4][:,[0,1,2,3,4,5]])
-    
-    if CARTESIANOBS:
-        observationlist = convertToCartesian(observationlist[:,0], observationlist[:,1], observationlist[:,2],\
-                observationlist[:,3], observationlist[:,4], observationlist[:,5])
-        
-        if OBS3:
-            observationlist = np.array(observationlist)
-            observationlist =  observationlist[[0,1,-1],:]
-    
-        observationlist = np.transpose(observationlist)
     
     #Convert time to years
     _, _, T_0 = getBaseUnitConversions()
     timegrid = 2.010356112597776246e+03 + obstimes * T_0 / (365.25 * 24 * 60**2 )
     
-    observationlist = np.column_stack((timegrid, observationlist))
+    rx,ry,rz,vx,vy,vz = simulateOrbitsCartesian(True, IC, mis, ris, obstimes)
+    rx, ry, vz = convertXYVZtoArcsec(rx, ry, vz)
+    
+    observationlist = np.column_stack((timegrid, ry,rx, vz))
+    
+    observationlist = addNoiseToObservations(observationlist,ADD_NOISE,seed,noisefactor)
     
     
     #observationlist =[[t1 x1 y1 ... vz1], [t2 x2 y2 ... vz2],...[]]
@@ -1870,13 +1862,19 @@ def reconstructFromFile(filename,ic_guess,dm_guess,ADD_NOISE = True,seed = 0,noi
         Reconstructed initial conditions and dark matter masses.
 
     """
-    observationlist = getObservations(filename,ADD_NOISE,seed,noisefactor)
     
-    return reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS=True,OBS3=True)
+    observations = np.loadtxt(filename)
+    
+    
+    #Observations are given in time [yr], Y [arcsec], X [arcsec], VZ [km/s]
+    observationlist = addNoiseToObservations(observations,ADD_NOISE,seed,noisefactor)
+    #
+    
+    return reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS=True,OBS3=True,noisefactor=noisefactor)
     
     
 
-def getObservations(filename,ADD_NOISE = True,seed = 0,noisefactor = 1):
+def addNoiseToObservations(observations,ADD_NOISE = True,seed = 0,noisefactor = 1):
     """
     Reconstructs initial conditions and dark matter from a given filename
 
@@ -1897,9 +1895,12 @@ def getObservations(filename,ADD_NOISE = True,seed = 0,noisefactor = 1):
         Reconstructed initial conditions and dark matter masses.
 
     """
+    #Important: order of observations is Y, X, VZ
+    
+    #Input: arcsec
+    #Output: AU
+    
     M_0, D_0, T_0 = getBaseUnitConversions()
-    observations = np.loadtxt(filename)
-    #Observations are given in time [yr], Y [arcsec], X [arcsec], VZ [km/s]
     
     timegrid = observations[:,0]
     
@@ -1907,11 +1908,6 @@ def getObservations(filename,ADD_NOISE = True,seed = 0,noisefactor = 1):
     rYs = observations[:,1]
     rXs = observations[:,2]
     vZs = observations[:,3]
-    
-    #Keep the original ones for comparisons
-    # origrYs = rYs
-    # origrXs = rXs
-    origvZs = vZs
     
     #Add Gaussian noise
     if ADD_NOISE:
@@ -1929,24 +1925,29 @@ def getObservations(filename,ADD_NOISE = True,seed = 0,noisefactor = 1):
         rXs = rXs + noisePos
         vZs = vZs + noiseVel
     
+        
+    rYs = arcseconds_to_AU(rYs)
+    rXs = arcseconds_to_AU(rXs)
+    vZs = vZs * 1000 * T_0 / D_0 
     
-    REMOVE_NOISE = False
-    #Attempt to remove the gaussian noise by using a 1D Gaussian filter
-    #Does not work well at all, leads to large errors
-    if REMOVE_NOISE:
-        from scipy.ndimage import gaussian_filter1d
-        plt.figure()
-        plt.scatter(timegrid,vZs-origvZs,label='With noise')
-        # plt.scatter(timegrid,rYs-origrYs,label='With noise')
-        
-        rYs = gaussian_filter1d(rYs,noiseLevelPos)
-        rXs = gaussian_filter1d(rXs,noiseLevelPos)
-        vZs = gaussian_filter1d(vZs,noiseLevelVel)
-        
-        plt.scatter(timegrid,vZs-origvZs,label='After filtering')
-        # plt.scatter(timegrid,rYs-origrYs,label='After filtering')
-        plt.legend()
-        
+    
+    observationlist = np.column_stack((timegrid, rXs, rYs, vZs))
+    
+    return observationlist
+
+
+def getObservations(filename):
+    
+    M_0, D_0, T_0 = getBaseUnitConversions()
+    
+    observations = np.loadtxt(filename)
+    
+    timegrid = observations[:,0]
+    
+    rYs = observations[:,1]
+    rXs = observations[:,2]
+    vZs = observations[:,3]
+    
         
     rYs = arcseconds_to_AU(rYs)
     rXs = arcseconds_to_AU(rXs)

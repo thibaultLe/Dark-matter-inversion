@@ -213,7 +213,7 @@ def reconstructAllDatasets():
                 # dm_guess = mis.copy() + noise
                 
                 
-                reconic, reconmisInit, initloss = orbitModule.reconstructFromFile(filepath,ic_guess,dm_guess, \
+                reconic, reconmisInit = orbitModule.reconstructFromFile(filepath,ic_guess,dm_guess, \
                             ADD_NOISE = False, noisefactor = 1e-1,seed=2)
                
                 
@@ -222,7 +222,7 @@ def reconstructAllDatasets():
                 plotInitReconTrueMasses(dm_guess,reconmisInit,mis,STD=False)
                 
                 print(list(reconmisInit))
-                print(initloss)
+                # print(initloss)
                 
                 # observations = np.loadtxt('Datasets/BahcallWolf_N={}.txt'.format(N))
                 # timegrid = observations[:,0]
@@ -281,7 +281,6 @@ def reconstructFromTrueMasses():
     # mis, ris = orbitModule.get_BahcallWolf_DM(N,xlim)
     # mis,ris = orbitModule.get_Uniform_DM(N, xlim)
     mis,ris = orbitModule.get_Sinusoidal_DM(N, xlim)
-    # mis = 1*np.array(mis)
     
     IC = orbitModule.get_S2_IC()
     ic_guess = IC
@@ -299,36 +298,13 @@ def reconstructFromTrueMasses():
     # obstimes = np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 
     
     reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
-                                      ic_guess,dm_guess, CARTESIANOBS = True,OBS3 = True)
+                              ic_guess,dm_guess, CARTESIANOBS = True,OBS3 = True, \
+                              ADD_NOISE = False, noisefactor = 1e-1,seed=2)
         
     
     plotInitReconTrueMasses(dm_guess,reconmis,mis)
     
     
-    # obstimes = obstimes[:2]
-    # variance_x0, variance_DM = orbitModule.getModelUncertainty(reconic, reconmis, obstimes)
-    
-    # rp = 119.52867
-    # ra = 1948.96214
-    # plt.figure()
-    # plt.scatter(ris,mis,label='True')
-    # # plt.scatter(ris,dm_guess,label='Initial guess',color='grey',alpha=0.5)
-    # plt.scatter(ris,reconmis,label='Reconstructed')
-    # plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
-    # plt.axvline(ra,linestyle='--',color='black')
-    # plt.xlabel("Distance from MBH [AU]")
-    # plt.ylabel("Mass [MBH masses]")
-    # plt.title('Reconstructed dark matter distribution')
-    
-    # variance_DM = variance_DM
-    # # print(variance_DM)
-    # for i in range(N):
-    #     if i == 0:
-    #         plt.errorbar(ris[i],reconmis[i],variance_DM[i],capsize=5,color='blue',label='Variance')
-    #     else:
-    #         plt.errorbar(ris[i],reconmis[i],variance_DM[i],capsize=5,color='blue')
-
-    # plt.legend()
 
 
 

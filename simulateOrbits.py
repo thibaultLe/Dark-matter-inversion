@@ -10,40 +10,28 @@ from matplotlib.pylab import plt
 import orbitModule
 
 
-
-def simulateOrbit():
-    #Amount of dark matter shells
-    N = 10
-    
+def simulateOrbit(N,nbrOfOrbits=1):
     #Max x limit (in AU)
-    xlim = 2500
+    xlim = 2100
     
     #Dark matter mascons (in MBH masses units), Mascon distance from MBH (in AU)
     mis,ris = orbitModule.get_Plummer_DM(N, xlim)
+    
+    # mis = N *[0]
 
     M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
     
-    
     IC = orbitModule.get_S2_IC()
         
-        
-    #Time grid:
-    t_grid =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+    timegrid = orbitModule.getObservationTimes(nbrOfOrbits)
     
-    
-    rx,ry,rz,vx,vy,vz= orbitModule.simulateOrbitsCartesian(False, IC, mis, ris, t_grid)
-    
-    
-    # plt.figure()
-    # plt.hist(np.sqrt(rx**2+ry**2+rz**2),bins=20)
-    # plt.ylabel('Number of observations')
-    # plt.xlabel('Distance from MBH [AU]')
+    rx,ry,rz,vx,vy,vz= orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, timegrid)
     
     
     #Plot position and MBH
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.plot(rx[1:], ry[1:], rz[1:], label='Orbit of S2')
+    ax.plot(rx, ry, rz, label='Orbit of S2')
     # ax.scatter(rx[0], ry[0], rz[0], label='Start',color='lawngreen')
     # ax.scatter(rx[-1], ry[-1], rz[-1], label='End',color="red")
     ax.scatter(0,0,0,color='black',label="MBH")
@@ -117,9 +105,7 @@ def simulateOrbit():
     
 #Visualize the orbits of the initial guess to the reconstruction and true values
 #Note: very hard to see any difference with the default parameters
-def compareInitialToReconstructed():
-    #Amount of dark matter shells
-    N = 10
+def compareInitialToReconstructed(N):
     
     #Reconstructed:
     reconstructedMis = [0.0001140864401540135, 0.00011429616443128367, 0.00011451944876234744, 0.0001146896144624966, 0.00011479470708703137, 0.00011461909284082165, 0.00011367249001702631, 0.00011040129335069722, 0.00010256063244500486, 5.376469046985896e-11]
@@ -131,7 +117,7 @@ def compareInitialToReconstructed():
     
     
     #Max x limit (in AU)
-    xlim = 2500
+    xlim = 2100
     
     #Dark matter mascons (in MBH masses units), Mascon distance from MBH (in AU)
     mis,ris = orbitModule.get_Plummer_DM(N, xlim)
@@ -142,22 +128,21 @@ def compareInitialToReconstructed():
     IC = orbitModule.get_S2_IC()
         
     #Time grid:
-    t_grid =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+    t_grid = orbitModule.getObservationTimes()
     
+    rx,ry,rz,vx,vy,vz= orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, t_grid)
     
-    rx,ry,rz,vx,vy,vz= orbitModule.simulateOrbitsCartesian(False, IC, mis, ris, t_grid)
+    rxR,ryR,rzR,vxR,vyR,vzR= orbitModule.simulateOrbitsCartesian(True, reconstructedIC, reconstructedMis, ris, t_grid)
     
-    rxR,ryR,rzR,vxR,vyR,vzR= orbitModule.simulateOrbitsCartesian(False, reconstructedIC, reconstructedMis, ris, t_grid)
-    
-    rxI,ryI,rzI,vxI,vyI,vzI= orbitModule.simulateOrbitsCartesian(False, initialguessIC, initialguessMis, ris, t_grid)
+    rxI,ryI,rzI,vxI,vyI,vzI= orbitModule.simulateOrbitsCartesian(True, initialguessIC, initialguessMis, ris, t_grid)
     
     
     #Plot position and MBH
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.plot(rxI[1:], ryI[1:], rzI[1:], label='Initial guess')
-    ax.plot(rxR[1:], ryR[1:], rzR[1:], label='Reconstructed',color='tab:orange')
-    ax.plot(rx[1:], ry[1:], rz[1:], label='True',color='tab:blue')
+    ax.plot(rxI, ryI, rzI, label='Initial guess')
+    ax.plot(rxR, ryR, rzR, label='Reconstructed',color='tab:orange')
+    ax.plot(rx, ry, rz, label='True',color='tab:blue')
     # ax.scatter(rx[0], ry[0], rz[0], label='Start',color='lawngreen')
     # ax.scatter(rx[-1], ry[-1], rz[-1], label='End',color="red")
     ax.scatter(0,0,0,color='black',label="MBH")
@@ -193,8 +178,12 @@ def compareInitialToReconstructed():
 
 
 if __name__ == "__main__":
-    simulateOrbit()
-    # compareInitialToReconstructed()
+    #Amount of dark matter shells
+    N = 10
+    
+    simulateOrbit(N,nbrOfOrbits=1)
+    
+    # compareInitialToReconstructed(N)
     
 
 

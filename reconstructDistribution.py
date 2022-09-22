@@ -11,16 +11,16 @@ from matplotlib.pylab import plt
 import orbitModule
 
 #Max x limit in [AU]
-xlim = 2500
-#Amount of points in linspace
-n = 1000
-#X points:
-rDM = np.linspace(0,xlim,n)
+xlim = 2100
 #Sigmoid steepness factor
 k = 0.01
 #Amount of dark matter shells
 N = 10
 
+#Don't change these:
+#X points: 
+rDM = np.linspace(0,xlim,1000)
+#DM shell distances
 ris = orbitModule.get_DM_distances(N, xlim)
 
 
@@ -40,7 +40,7 @@ def getEnclosedMass(mis):
     
     return sumRis
 
-def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=False):
+def plotInitReconTrueMasses(dm_guess,reconmis,mis,stddevs=[]):
     rp = 119.52867
     ra = 1948.96214
     
@@ -51,8 +51,21 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=False):
     #Plot masses:
     # plt.figure()
     ax11.scatter(ris,mis,label='True')
-    ax11.scatter(ris,reconmis,label='Reconstructed')
-    ax11.scatter(ris,dm_guess,label='Initial guess',color='lightgrey',alpha=1)
+    if len(stddevs) > 0:
+        ax11.scatter(ris,reconmis,label='Mean reconstruction') 
+        for i in range(N):
+            if i == 0:
+                ax11.errorbar(ris[i],reconmis[i],stddevs[i],capsize=5,color='orange',label='[Standard deviation]')
+                
+            else:
+                ax11.errorbar(ris[i],reconmis[i],stddevs[i],capsize=5,color='orange')
+                
+        ax11.set_ylim(0,max(1.2*max(reconmis),1.2*max(mis)))
+        
+    else:
+        ax11.scatter(ris,reconmis,label='Reconstructed')
+    
+    ax11.scatter(ris,dm_guess,label='Initial guess',color='lightgrey',alpha=0.5)
     
     # misPlum,_ = orbitModule.get_Plummer_DM(N, xlim)
     # ax11.scatter(ris,misPlum,label='Plummer')
@@ -63,29 +76,9 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=False):
     ax11.set_ylabel("Mass [MBH masses]")
     ax11.set_title('Mass')
     # ax11.legend()
-    
 
-    observations = np.loadtxt('Datasets/BahcallWolf_N={}.txt'.format(N))
-    timegrid = observations[:,0]
-    t_grid = orbitModule.convertYearsTimegridToOurFormat(timegrid)
     
-    if STD:
-        variance_x0, variance_DM = orbitModule.getModelUncertainty(  \
-                orbitModule.get_S2_IC(), reconmis, t_grid, noisefactor=1e-2)
-        
-        M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
-        
-        # variance_DM = 20*variance_DM
-        # print(variance_DM)
-        for i in range(N):
-            if i == 0:
-                ax11.errorbar(ris[i],reconmis[i],variance_DM[i],capsize=5,color='orange',label='[Standard deviation]')
-                # plt.errorbar(ris[i],0,variance_DM[i],capsize=5,color='orange',label='Variance')
-       
-            else:
-                ax11.errorbar(ris[i],reconmis[i],variance_DM[i],capsize=5,color='orange')
-                # plt.errorbar(ris[i],0,variance_DM[i],capsize=5,color='orange')
-        ax11.set_ylim(0,max(1.2*max(reconmis),1.2*max(mis)))
+   
     ax11.legend()
     
     #Plot enclosed mass:
@@ -142,8 +135,6 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,STD=False):
     ax13.scatter(ris,dens,label='True')
     ax13.scatter(ris,recondens,label='Reconstructed')
     ax13.scatter(ris,initdens,label='Initial guess',color='grey')
-    rp = 119.52867
-    ra = 1948.96214
     ax13.axvline(rp,linestyle='--',label='rp and ra',color='black')
     ax13.axvline(ra,linestyle='--',color='black')
     ax13.set_ylabel('Density [MBH masses/(AU³)')
@@ -163,7 +154,7 @@ def comparePlummer_BahcallWolfReconstruction(noisefactor):
     dm_guess, _ = orbitModule.get_BahcallWolf_DM(N,xlim)
     filename = 'Datasets/Plummer_N={}.txt'.format(N)
     reconic, reconmis = orbitModule.reconstructFromFile(filename,ic_guess,dm_guess, \
-                                        ADD_NOISE = True, noisefactor = noisefactor)
+                                        noisefactor = noisefactor)
     
     mis, ris = orbitModule.get_Plummer_DM(N,xlim)
     plotInitReconTrueMasses(dm_guess,reconmis,mis)
@@ -173,12 +164,12 @@ def comparePlummer_BahcallWolfReconstruction(noisefactor):
     dm_guess, _ = orbitModule.get_Plummer_DM(N,xlim)
     filename = 'Datasets/BahcallWolf_N={}.txt'.format(N)
     reconic, reconmis = orbitModule.reconstructFromFile(filename,ic_guess,dm_guess, \
-                                        ADD_NOISE = True, noisefactor = noisefactor)
+                                        noisefactor = noisefactor)
     
     mis, ris = orbitModule.get_BahcallWolf_DM(N,xlim)
     plotInitReconTrueMasses(dm_guess,reconmis,mis)
 
-def reconstructAllDatasets():
+def reconstructAllDatasets(noisefactor=1):
     for entry in os.scandir("./Datasets/"):    
         filepath = entry.path
         filename = entry.name
@@ -187,21 +178,18 @@ def reconstructAllDatasets():
             Nf = int(filename.split('.')[0].split('=')[1])
             if Nf == N:
                 name = filename.split('_')[0]
-                print('Reconstructing',filename)
+                # if name == 'Sinusoidal':
+                #     continue
+                print('\nReconstructing',filename)
                 
                 getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
                 mis, ris = getTrueDM(N,xlim)
                 
-                
                 ic_guess = orbitModule.get_S2_IC()
-                
                 
                 
                 print('Starting from 0')
                 dm_guess = Nf*[0]
-                # dm_guess = [9.492757471095918e-05, 9.906663990242069e-05, 0.00010494936656500701, 0.00011156525554012521, 0.00011916811948511612, 0.00012831685318671443, 0.00014053512764023823, 0.00016180965436519293, 0.0001984523234489342, 2.4308125394118965e-10]
-                # dm_guess = [8.444633654919243e-05, 9.872153866761411e-05, 0.00011193335857871409, 0.00011968076505676556, 0.00012578257548928034, 0.0001324663808173125, 0.00013724169718901135, 0.00014207480882013533, 0.000211996380321655, 2.4325580272583567e-10]
-                
                 # print('Starting from true masses')
                 # dm_guess = mis.copy()
                 # print('Starting from Plummer')
@@ -214,107 +202,149 @@ def reconstructAllDatasets():
                 
                 
                 reconic, reconmisInit = orbitModule.reconstructFromFile(filepath,ic_guess,dm_guess, \
-                            ADD_NOISE = False, noisefactor = 1e-1,seed=2)
+                            noisefactor = noisefactor,seed=0)
                
                 
-                # # reconmisInit = [0.00016456404871297104, 0.00021621004966190728, 0.0002881053212509268, 0.00020701015669467748, 0.00028355321722857375]
+                plotInitReconTrueMasses(dm_guess,reconmisInit,mis)
                 
-                plotInitReconTrueMasses(dm_guess,reconmisInit,mis,STD=False)
+                # print(list(reconmisInit))
                 
-                print(list(reconmisInit))
-                # print(initloss)
-                
-                # observations = np.loadtxt('Datasets/BahcallWolf_N={}.txt'.format(N))
-                # timegrid = observations[:,0]
-                # t_grid = orbitModule.convertYearsTimegridToOurFormat(timegrid)
-                # variance_x0, variance_DM = orbitModule.getModelUncertainty(  \
-                #         orbitModule.get_S2_IC(), dm_guess, t_grid, noisefactor=1e-1)
-                # variance_DM = 10*variance_DM
-                # noiseLevel = 20*variance_DM
-                # for i in range(7):
-                #     noiseLevel[13+i] = 0
-                # noiseLevel[4] = 0
-                    
-                
-                #0 noise -> 5000 iterations
+                #0 noise -> 5000+ iterations/loss threshold
                 #1e-2 -> 1200 iterations
                 #1 -> 200 iterations?
                 
-                # reconMises = []
-                # losses = []
-                # for i in range(10):
-                #     # dm_guess_new = Nf*[0]
-                #     np.random.seed(i)
-                #     noise = np.random.normal(0,0.0001,len(dm_guess))
-                #     # dm_guess_noise = mis.copy() + noise
-                #     # dm_guess_new = reconmisInit.copy() * [0.5 + (i+1)/7]
-                #     dm_guess_new = reconmisInit.copy() + noise
-                #     # dm_guess_new = [0.00016456404871297104, 0.00021621004966190728, 0.0002881053212509268, 0.00020701015669467748, 0.00028355321722857375]
-                    
-                    
-                #     # dm_guess_new = [0.00017661782060660752, 0.00021817973039456827, 0.00023547195019420783, 0.00025362165691468854, 0.0002564173694075912]
-                    
-                    
-                #     reconic, reconmis,loss = orbitModule.reconstructFromFile(filepath,ic_guess,dm_guess_new, \
-                #                                 ADD_NOISE = True, noisefactor = 1e-1,seed=2)
-                    
-                #     # if i < 2:
-                #     plotInitReconTrueMasses(dm_guess_new,reconmis,mis,STD = False)
-                    
-                #     # print(list(reconmis))
-                #     reconMises.append(list(reconmis))
-                #     losses.append(loss)
-                # # print(noiseLevel)
-                # # print(list(reconmisInit))
-                # print(reconMises)
-                # print(losses)
-                # continue
             
                 
                 
-                break
+                # break
         else:
             continue
 
-def reconstructFromTrueMasses():
-    # mis, ris = orbitModule.get_Plummer_DM(N,xlim)
-    # mis, ris = orbitModule.get_BahcallWolf_DM(N,xlim)
-    # mis,ris = orbitModule.get_Uniform_DM(N, xlim)
-    mis,ris = orbitModule.get_Sinusoidal_DM(N, xlim)
+
+def reconstructFromTrueMasses(noisefactor = 0,name='Plummer'):
+    getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
+    mis, ris = getTrueDM(N,xlim)
     
-    IC = orbitModule.get_S2_IC()
-    ic_guess = IC
-    # ic_guess = np.multiply(IC, len(IC)*[1.000001])
+    ic_guess = orbitModule.get_S2_IC()
     
     dm_guess = N*[0]
-    # dm_guess,_ = orbitModule.get_Uniform_DM(N, xlim)
-    # dm_guess,_ = orbitModule.get_Plummer_DM(N,xlim)
-    # dm_guess = 0.5*np.array(mis)
     
     #Times of observation in [seconds/T_0]
     M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
     
-    obstimes =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
-    # obstimes = np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 
+    # obstimes =  np.append(0,(np.linspace(0,16.056740695411154,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+   
+    obstimes =  orbitModule.getObservationTimes()
+    
+    # obstimes =  np.linspace(0,16.056740695411154,300) * 365.25 * 24 * 60**2 /T_0  + 84187.772
+    # print(obstimes)
     
     reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
                               ic_guess,dm_guess, CARTESIANOBS = True,OBS3 = True, \
-                              ADD_NOISE = False, noisefactor = 1e-1,seed=2)
+                              noisefactor=noisefactor,seed=0)
         
     
     plotInitReconTrueMasses(dm_guess,reconmis,mis)
     
     
+def checkRobustnessToNoise(noisefactor,amountOfRecons,name):
+    getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
+    mis, ris = getTrueDM(N,xlim)
+    
+    IC = orbitModule.get_S2_IC()
+    ic_guess = IC
+    
+    dm_guess = N*[0]
+    
+    #Times of observation in [seconds/T_0]
+    M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
+    
+    obstimes =  orbitModule.getObservationTimes()
+    
+    reconmises = []
+    for i in range(amountOfRecons):
+        reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
+                              ic_guess,dm_guess, CARTESIANOBS = True,OBS3 = True, \
+                              noisefactor = noisefactor,seed=i)
+        reconmises.append(reconmis)
+    
+    mean = np.mean(reconmises,axis=0)
+    stddevs = np.std(reconmises,axis=0)
+    
+    plotInitReconTrueMasses(dm_guess,mean,mis,stddevs)
 
 
+def compareDifferentTimeGrids(noisefactor = 0,name='Plummer'):
+    getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
+    mis, ris = getTrueDM(N,xlim)
+    
+    IC = orbitModule.get_S2_IC()
+    ic_guess = IC
+    
+    dm_guess = N*[0]
+    
+    #Times of observation in [seconds/T_0]
+    M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
+    
+    txtfile = 'Datasets/1PN.txt'
+    comparedData = np.loadtxt(txtfile)
+    obstimes = comparedData[:,0]
+    
+    reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
+                              ic_guess,dm_guess, CARTESIANOBS = True,OBS3 = True, \
+                              noisefactor=noisefactor,seed=0)
+        
+    plotInitReconTrueMasses(dm_guess,reconmis,mis)
+    
+    
+    obstimes =  orbitModule.getObservationTimes()
+    
+    reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
+                              ic_guess,dm_guess, CARTESIANOBS = True,OBS3 = True, \
+                              noisefactor=noisefactor,seed=0)
+        
+    plotInitReconTrueMasses(dm_guess,reconmis,mis)
+    
+
+def checkLossVariance(noisefactor=1e-1):
+    mis, ris = orbitModule.get_Plummer_DM(N,xlim)
+    
+    truelosses = orbitModule.lossesForDifferentNoiseProfiles(mis,noisefactor)
+    
+    means = np.mean(truelosses,axis=0)
+    stddevs = np.std(truelosses,axis=0)
+
+    plt.figure()
+    plt.ylabel('Loss')
+    plt.errorbar([1], means,stddevs,fmt='o',capsize=5,label='Mean and standard deviation')
+    plt.legend()
+    plt.title('Loss of true masses')
 
 """
-#Uncomment functions here to use them:
+Set your desired parameters at the top,
+ then uncomment functions here to use them:
 """
 
 if __name__ == "__main__":
-    # reconstructAllDatasets()
-    reconstructFromTrueMasses()
+    
+    #Reconstruct all datasets
+    # reconstructAllDatasets(noisefactor=0)
+    
+    #Possible names: Plummer, BahcallWolf, Sinusoidal, Uniform,ConstantDensity,
+    # ReversedPlummer
+    reconstructFromTrueMasses(noisefactor = 0,name='Sinusoidal')
+    
+    #For different noise samples, check the robustness of the reconstruction:
+    # checkRobustnessToNoise(noisefactor=1e-1,amountOfRecons=5,name='Plummer')
+    
+    #Compare equi-temporal spacing vs equi-spatial spacing
+    # compareDifferentTimeGrids(noisefactor = 1e-1,name='Plummer')
+    
+    #Start from the Plummer distribution, reconstruct on Bahcall observations and vice versa
     # comparePlummer_BahcallWolfReconstruction(noisefactor=1e-5)
-    # comparePlummer_BahcallWolfReconstruction(noisefactor=5e-1)
-    # comparePlummer_BahcallWolfReconstruction(noisefactor=1)
+    
+    #Look at the loss landscape for different distributions
+    # orbitModule.lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000)
+    
+    #Calculate the variance of the true loss wrt different noise samples
+    # checkLossVariance(noisefactor=1e-1)

@@ -6,66 +6,48 @@ Created on Wed Jul 13 14:56:35 2022
 """
 
 import numpy as np
-from matplotlib.pylab import plt
 import orbitModule
 
 
-M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
-
-IC = orbitModule.get_S2_IC()
-t_grid =  np.append(0,(np.linspace(0,16.056,228) * 365.25 * 24 * 60**2 /T_0 ) + 84187.772)
+def buildDatasets(Ns,xlim):
+    print("Building datasets")
+    IC = orbitModule.get_S2_IC()
     
-#Convert time to years
-_, _, T_0 = orbitModule.getBaseUnitConversions()
-timegrid = 2.010356112597776246e+03 + t_grid * T_0 / (365.25 * 24 * 60**2 )
-
-#Dark matter:
-#Amount of mascons:
-N = 20
-
-#Set dark matter distribution
-#AU limit
-xlim = 2500
-
-
-#Plummer
-mis,ris = orbitModule.get_Plummer_DM(N, xlim)
-
-rx,ry,rz,vx,vy,vz = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, t_grid)
-rx, ry, vz = orbitModule.convertXYVZtoArcsec(rx, ry, vz)
-data = np.column_stack((timegrid,ry,rx,vz))
-np.savetxt('Datasets/Plummer_N={}.txt'.format(N),data)
-#format: [[t0, y0, x0, vz0],
-#         [t1, y1, x1, vz1],...]
+    timegrid = orbitModule.getObservationTimes()
+    
+    #Distributions:
+    names = ['Plummer','BahcallWolf','Uniform','Sinusoidal']
+    
+    for N in Ns:
+        for name in names:
+            getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
+            mis, ris = getTrueDM(N,xlim)
+            
+            rx,ry,rz,vx,vy,vz = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, timegrid)
+            rx, ry, vz = orbitModule.convertXYVZtoArcsec(rx, ry, vz)
+            data = np.column_stack((timegrid,ry,rx,vz))
+            np.savetxt('Datasets/{}_N={}.txt'.format(name,N),data)
+        
+        
+def setupTaylorIntegrators(Ns):
+    print("Setting up taylor integrators, this could take some time")
+    for N in Ns:
+        orbitModule.buildTaylorIntegrator(True,N,SAVE_PICKLE=True)    
 
 
-#Bahcall-Wolf
-mis,ris = orbitModule.get_BahcallWolf_DM(N, xlim)
-
-rx,ry,rz,vx,vy,vz = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, t_grid)
-rx, ry, vz = orbitModule.convertXYVZtoArcsec(rx, ry, vz)
-data = np.column_stack((timegrid,ry,rx,vz))
-np.savetxt('Datasets/BahcallWolf_N={}.txt'.format(N),data)
-
-#Uniform
-mis,ris = orbitModule.get_Uniform_DM(N, xlim)
-
-rx,ry,rz,vx,vy,vz = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, t_grid)
-rx, ry, vz = orbitModule.convertXYVZtoArcsec(rx, ry, vz)
-data = np.column_stack((timegrid,ry,rx,vz))
-np.savetxt('Datasets/Uniform_N={}.txt'.format(N),data)
-
-
-#Uniform
-mis,ris = orbitModule.get_Sinusoidal_DM(N, xlim)
-
-rx,ry,rz,vx,vy,vz = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, t_grid)
-rx, ry, vz = orbitModule.convertXYVZtoArcsec(rx, ry, vz)
-data = np.column_stack((timegrid,ry,rx,vz))
-np.savetxt('Datasets/Sinusoidal_N={}.txt'.format(N),data)
-
-
-
-
+if __name__ == "__main__":
+    #Dark matter:
+    #Amount of mascons:
+    Ns = [5,10]
+    
+    #Set dark matter distribution AU limit:
+    xlim = 2100
+    
+    #Build the datasets
+    buildDatasets(Ns, xlim)
+    
+    #Setup the taylor integrators
+    # setupTaylorIntegrators(Ns)
+    
 
 

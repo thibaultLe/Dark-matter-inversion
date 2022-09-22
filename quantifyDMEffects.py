@@ -10,16 +10,17 @@ from matplotlib.pylab import plt
 import orbitModule
 
 
+timegrid = orbitModule.getObservationTimes()
 
-comparedData = np.loadtxt('Datasets/1PN.txt')
-timegrid = comparedData[:,0]
+#Alternative timegrid:
+# comparedData = np.loadtxt('Datasets/1PN.txt')
+# timegrid = comparedData[:,0]
 
-t_grid = orbitModule.convertYearsTimegridToOurFormat(timegrid)
 M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
 
 #Plot dark matter distribution
 #AU limit
-xlim = 2500
+xlim = 2100
 #Amount of points in linspace
 n = 1000
 
@@ -33,8 +34,10 @@ def enclosedMassCusp(a,rho0):
     return (4 * a**3 * np.pi * (a/r0)**(-7/4) * rho0) / (3 - (7/4))
 
 
-def plotMasconsMass(N=20,k=0.1,PLUM=True):
-    rDM = np.linspace(0,xlim,n)
+def plotMasconsMass(N=20,k=0.1,name='Plummer'):
+    #Possible names: Plummer, BahcallWolf, Sinusoidal, Uniform, ConstantDensity
+    
+    rDM = orbitModule.get_DM_distances(N, xlim)
     
     rho0plum = 1.69*10**(-10) * (D_0**3) / M_0
     rho0cusp = 2.24*10**(-11) * (D_0**3) / M_0
@@ -47,11 +50,9 @@ def plotMasconsMass(N=20,k=0.1,PLUM=True):
     rp = 119.52867
     ra = 1948.96214
     
-    if PLUM:
-        mis, ris = orbitModule.get_Plummer_DM(N, xlim)
-        mis, ris = orbitModule.get_Sinusoidal_DM(N, xlim)
-    else:
-        mis, ris = orbitModule.get_BahcallWolf_DM(N, xlim)
+        
+    getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
+    mis, ris = getTrueDM(N,xlim)
     
     
     # Mascon model (mi, ri), sigmoid approximation of step function
@@ -70,13 +71,13 @@ def plotMasconsMass(N=20,k=0.1,PLUM=True):
     #Plot enclosed mass
     plt.figure()
     plt.xlabel('Distance from MBH [AU]')
-    if PLUM:
+    if name == 'Plummer':
         plt.plot(rDM,enclosedMassPlum(rDM,rho0plum),label='Plummer model')
-    else:
+    elif name == 'BahcallWolf':
         plt.plot(rDM,np.append(0,enclosedMassCusp(rDM[1:],rho0cusp)),label='Bahcall-wolf model')
     
-    plt.plot(rDM,sumRis,label='Sum of sigmoids')
-    plt.ylabel('enclosed mass [MBH masses]')
+    plt.plot(rDM,sumRis,label='Mascon shell model',color='tab:orange')
+    plt.ylabel('Enclosed mass [MBH masses]')
     plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
     plt.axvline(ra,linestyle='--',color='black')
     # plt.scatter(ris,np.cumsum(mis),label='Mascon shells',color='orange')
@@ -114,14 +115,17 @@ def plotMasconsMass(N=20,k=0.1,PLUM=True):
 def effectOfAmountOfMascons(N1=10,N2=100):
     IC = orbitModule.get_S2_IC()
     
-    misN1, risN1 = orbitModule.get_Plummer_DM(N1, xlim)
-    misN2, risN2 = orbitModule.get_Plummer_DM(N2, xlim)
+    # misN1, risN1 = orbitModule.get_Plummer_DM(N1, xlim)
+    # misN2, risN2 = orbitModule.get_Plummer_DM(N2, xlim)
+    
+    misN1, risN1 = orbitModule.get_Sinusoidal_DM(N1, xlim)
+    misN2, risN2 = orbitModule.get_Sinusoidal_DM(N2, xlim)
     
     rxDMN1,ryDMN1,rzDMN1 , vxDMN1,vyDMN1,vzDMN1  = \
-        orbitModule.simulateOrbitsCartesian(True, IC, misN1, risN1,t_grid)
+        orbitModule.simulateOrbitsCartesian(True, IC, misN1, risN1,timegrid)
     
     rxDMN2,ryDMN2,rzDMN2,vxDMN2,vyDMN2,vzDMN2 = \
-        orbitModule.simulateOrbitsCartesian(True, IC, misN2, risN2,t_grid)
+        orbitModule.simulateOrbitsCartesian(True, IC, misN2, risN2,timegrid)
     
     
     xdifs = 1e6*(orbitModule.AU_to_arcseconds(rxDMN2)-orbitModule.AU_to_arcseconds(rxDMN1))
@@ -170,7 +174,7 @@ def effectOfIndividualMascons():
     
     IC = orbitModule.get_S2_IC()
     
-    rxPN,ryPN,rzPN, vxPN,vyPN,vzPN = orbitModule.simulateOrbitsCartesian(True, IC, mis0, ris0,t_grid)
+    rxPN,ryPN,rzPN, vxPN,vyPN,vzPN = orbitModule.simulateOrbitsCartesian(True, IC, mis0, ris0,timegrid)
     
     mis,ris = orbitModule.get_Plummer_DM(N=20, xlim=xlim)
     
@@ -179,19 +183,19 @@ def effectOfIndividualMascons():
     mis1[4] = 0
     mis1[7] = 0
     
-    rxDM1,ryDM1,rzDM1,vxDM1,vyDM1,vzDM1 = orbitModule.simulateOrbitsCartesian(True, IC, mis1, ris,t_grid)
+    rxDM1,ryDM1,rzDM1,vxDM1,vyDM1,vzDM1 = orbitModule.simulateOrbitsCartesian(True, IC, mis1, ris,timegrid)
     
     mis4 = mis.copy()
     mis4[1] = 0
     mis4[7] = 0
     
-    rxDM4,ryDM4,rzDM4 ,vxDM4,vyDM4,vzDM4 = orbitModule.simulateOrbitsCartesian(True, IC, mis4, ris,t_grid)
+    rxDM4,ryDM4,rzDM4 ,vxDM4,vyDM4,vzDM4 = orbitModule.simulateOrbitsCartesian(True, IC, mis4, ris,timegrid)
     
     mis7 = mis.copy()
     mis7[1] = 0
     mis7[4] = 0
     
-    rxDM7,ryDM7,rzDM7, vxDM7,vyDM7,vzDM7 = orbitModule.simulateOrbitsCartesian(True, IC, mis7, ris,t_grid)
+    rxDM7,ryDM7,rzDM7, vxDM7,vyDM7,vzDM7 = orbitModule.simulateOrbitsCartesian(True, IC, mis7, ris,timegrid)
     
     
     
@@ -258,17 +262,17 @@ def effectOfIndividualMascons():
     plt.legend()
 
 
-def plotDifferenceWIth1PN():
+def plotDifferenceWith1PN():
     mis0 = [0] #-> 0 dark matter, has no effect
     ris0 = np.linspace(0,xlim,1)
     
     IC = orbitModule.get_S2_IC()
     
-    rxPN,ryPN,rzPN, vxPN,vyPN,vzPN = orbitModule.simulateOrbitsCartesian(True, IC, mis0, ris0,t_grid)
+    rxPN,ryPN,rzPN, vxPN,vyPN,vzPN = orbitModule.simulateOrbitsCartesian(True, IC, mis0, ris0,timegrid)
     
-    mis,ris = orbitModule.get_Plummer_DM(100, 2500)
+    mis,ris = orbitModule.get_Plummer_DM(100, 2100)
     
-    rxDM,ryDM,rzDM,vxDM,vyDM,vzDM = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,t_grid)
+    rxDM,ryDM,rzDM,vxDM,vyDM,vzDM = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,timegrid)
     
     #Plot difference of DM:
     plt.figure()
@@ -327,17 +331,17 @@ def plotDifferenceWIth1PN():
     plt.legend()
 
 def plotDifferencePlumVsBahcall(N=100):
-    xlim = 2500
+    xlim = 2100
     
     IC = orbitModule.get_S2_IC()
     
     mis, ris = orbitModule.get_BahcallWolf_DM(N, xlim)
     
-    rxBW,ryBW,rzBW, vxBW,vyBW,vzBW = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,t_grid)
+    rxBW,ryBW,rzBW, vxBW,vyBW,vzBW = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,timegrid)
     
     mis,ris = orbitModule.get_Plummer_DM(N, xlim)
     
-    rxDM,ryDM,rzDM,vxDM,vyDM,vzDM = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,t_grid)
+    rxDM,ryDM,rzDM,vxDM,vyDM,vzDM = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,timegrid)
     
     #Plot difference of DM:
     plt.figure()
@@ -402,19 +406,22 @@ def plotDifferencePlumVsBahcall(N=100):
 """
 
 if __name__ == "__main__":
-    plotMasconsMass(N=5,k=0.01)
-    plotMasconsMass(N=10,k=0.01)
-    # plotMasconsMass(N=5,k=0.1)
-    # plotMasconsMass(N=10,k=0.005)
-    # plotMasconsMass(N=1000,k=0.01,PLUM=True)
-    # plotMasconsMass(N=30,k=0.01,PLUM=False)
+    #Plot the mascon enclosed mass and individual masses for different profiles:
+    # plotMasconsMass(N=5,k=0.01)
+    # plotMasconsMass(N=10,k=0.01,name='ConstantDensity')
+    plotMasconsMass(N=30,k=0.01,name='Sinusoidal')
     
+    #Calculates the effect on the orbit of 3 different mascons
     # effectOfIndividualMascons()
-    # plotDifferenceWIth1PN()
-    # effectOfAmountOfMascons(N1=2,N2=1000)
-    # effectOfAmountOfMascons(N1=5,N2=1000)
-    # effectOfAmountOfMascons(N1=10,N2=10000)
-    # effectOfAmountOfMascons(N1=25,N2=10000)
-    # effectOfAmountOfMascons(N1=50,N2=10000)
-    # effectOfAmountOfMascons(N1=100,N2=10000)
-    # plotDifferencePlumVsBahcall(N=100)
+    
+    #Plot the difference in the orbit of post-newtonian vs with added dark matter
+    # plotDifferenceWith1PN()
+    
+    #Discretization error:
+    # Ns = [2,5,10,25,50,100]
+    # for N in Ns:
+    #     print('\nFor {} mascons:'.format(N))
+    #     effectOfAmountOfMascons(N1=N,N2=10000)
+            
+    #Plot the difference of the Plummer distribution vs the Bahcallwolf:
+    # plotDifferencePlumVsBahcall(N=1000)

@@ -11,11 +11,8 @@ import orbitModule
 
 
 def simulateOrbit(N,nbrOfOrbits=1):
-    #Max x limit (in AU)
-    xlim = 2100
-    
     #Dark matter mascons (in MBH masses units), Mascon distance from MBH (in AU)
-    mis,ris = orbitModule.get_Plummer_DM(N, xlim)
+    mis,ris = orbitModule.get_Plummer_DM(N)
     
     # mis = N *[0]
 
@@ -116,11 +113,8 @@ def compareInitialToReconstructed(N):
     initialguessIC = orbitModule.get_S2_IC()
     
     
-    #Max x limit (in AU)
-    xlim = 2100
-    
     #Dark matter mascons (in MBH masses units), Mascon distance from MBH (in AU)
-    mis,ris = orbitModule.get_Plummer_DM(N, xlim)
+    mis,ris = orbitModule.get_Plummer_DM(N)
 
     M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
     

@@ -15,7 +15,7 @@ def validateSimulations(N,PNCORRECTION):
     
     
     mis = N*[0] #-> 0 dark matter, has no effect
-    ris = orbitModule.get_DM_distances(N, 2100)
+    ris = orbitModule.get_DM_distances(N)
     
     
     

@@ -17,12 +17,8 @@ timegrid = orbitModule.getObservationTimes()
 # timegrid = comparedData[:,0]
 
 M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
-
-#Plot dark matter distribution
-#AU limit
-xlim = 2100
-#Amount of points in linspace
-n = 1000
+xlim = orbitModule.get_xlim()
+rDM = np.linspace(0,xlim,1000)
 
 
 def enclosedMassPlum(a,rho0):
@@ -37,7 +33,6 @@ def enclosedMassCusp(a,rho0):
 def plotMasconsMass(N=20,k=0.1,name='Plummer'):
     #Possible names: Plummer, BahcallWolf, Sinusoidal, Uniform, ConstantDensity
     
-    rDM = orbitModule.get_DM_distances(N, xlim)
     
     rho0plum = 1.69*10**(-10) * (D_0**3) / M_0
     rho0cusp = 2.24*10**(-11) * (D_0**3) / M_0
@@ -52,7 +47,7 @@ def plotMasconsMass(N=20,k=0.1,name='Plummer'):
     
         
     getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
-    mis, ris = getTrueDM(N,xlim)
+    mis, ris = getTrueDM(N)
     
     
     # Mascon model (mi, ri), sigmoid approximation of step function
@@ -115,11 +110,11 @@ def plotMasconsMass(N=20,k=0.1,name='Plummer'):
 def effectOfAmountOfMascons(N1=10,N2=100):
     IC = orbitModule.get_S2_IC()
     
-    # misN1, risN1 = orbitModule.get_Plummer_DM(N1, xlim)
-    # misN2, risN2 = orbitModule.get_Plummer_DM(N2, xlim)
+    # misN1, risN1 = orbitModule.get_Plummer_DM(N1)
+    # misN2, risN2 = orbitModule.get_Plummer_DM(N2)
     
-    misN1, risN1 = orbitModule.get_Sinusoidal_DM(N1, xlim)
-    misN2, risN2 = orbitModule.get_Sinusoidal_DM(N2, xlim)
+    misN1, risN1 = orbitModule.get_Sinusoidal_DM(N1)
+    misN2, risN2 = orbitModule.get_Sinusoidal_DM(N2)
     
     rxDMN1,ryDMN1,rzDMN1 , vxDMN1,vyDMN1,vzDMN1  = \
         orbitModule.simulateOrbitsCartesian(True, IC, misN1, risN1,timegrid)
@@ -132,9 +127,9 @@ def effectOfAmountOfMascons(N1=10,N2=100):
     ydifs = 1e6*(orbitModule.AU_to_arcseconds(ryDMN2)-orbitModule.AU_to_arcseconds(ryDMN1))
     vzdifs = (vzDMN2-vzDMN1)/1000
     
-    print('Max X difference:',max(abs(xdifs)),'[µas]')
-    print('Max Y difference:',max(abs(ydifs)),'[µas]')
-    print('Max VZ difference:',max(abs(vzdifs)),'[km/s]')
+    print('Max X difference:',round(max(abs(xdifs)),2),'[µas]')
+    print('Max Y difference:',round(max(abs(ydifs)),2),'[µas]')
+    print('Max VZ difference:',round(max(abs(vzdifs)),2),'[km/s]')
     
     
     plt.figure()
@@ -170,13 +165,13 @@ def effectOfAmountOfMascons(N1=10,N2=100):
 
 def effectOfIndividualMascons():
     mis0 = [0] #-> 0 dark matter, has no effect
-    ris0 = np.linspace(0,xlim,1)
+    ris0 = np.linspace(0,1,1)
     
     IC = orbitModule.get_S2_IC()
     
     rxPN,ryPN,rzPN, vxPN,vyPN,vzPN = orbitModule.simulateOrbitsCartesian(True, IC, mis0, ris0,timegrid)
     
-    mis,ris = orbitModule.get_Plummer_DM(N=20, xlim=xlim)
+    mis,ris = orbitModule.get_Plummer_DM(N=20)
     
     #Plot individual differences of mascons:
     mis1 = mis.copy()
@@ -264,13 +259,13 @@ def effectOfIndividualMascons():
 
 def plotDifferenceWith1PN():
     mis0 = [0] #-> 0 dark matter, has no effect
-    ris0 = np.linspace(0,xlim,1)
+    ris0 = np.linspace(0,1,1)
     
     IC = orbitModule.get_S2_IC()
     
     rxPN,ryPN,rzPN, vxPN,vyPN,vzPN = orbitModule.simulateOrbitsCartesian(True, IC, mis0, ris0,timegrid)
     
-    mis,ris = orbitModule.get_Plummer_DM(100, 2100)
+    mis,ris = orbitModule.get_Plummer_DM(100)
     
     rxDM,ryDM,rzDM,vxDM,vyDM,vzDM = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,timegrid)
     
@@ -331,15 +326,13 @@ def plotDifferenceWith1PN():
     plt.legend()
 
 def plotDifferencePlumVsBahcall(N=100):
-    xlim = 2100
-    
     IC = orbitModule.get_S2_IC()
     
-    mis, ris = orbitModule.get_BahcallWolf_DM(N, xlim)
+    mis, ris = orbitModule.get_BahcallWolf_DM(N)
     
     rxBW,ryBW,rzBW, vxBW,vyBW,vzBW = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,timegrid)
     
-    mis,ris = orbitModule.get_Plummer_DM(N, xlim)
+    mis,ris = orbitModule.get_Plummer_DM(N)
     
     rxDM,ryDM,rzDM,vxDM,vyDM,vzDM = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris,timegrid)
     
@@ -407,9 +400,9 @@ def plotDifferencePlumVsBahcall(N=100):
 
 if __name__ == "__main__":
     #Plot the mascon enclosed mass and individual masses for different profiles:
-    # plotMasconsMass(N=5,k=0.01)
+    plotMasconsMass(N=5,k=0.01)
     # plotMasconsMass(N=10,k=0.01,name='ConstantDensity')
-    plotMasconsMass(N=30,k=0.01,name='Sinusoidal')
+    # plotMasconsMass(N=30,k=0.01,name='Sinusoidal')
     
     #Calculates the effect on the orbit of 3 different mascons
     # effectOfIndividualMascons()

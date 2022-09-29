@@ -166,7 +166,19 @@ def get_S2_IC():
         
     return IC
 
-def get_DM_distances(N,xlim):
+def get_xlim():
+    """
+    Returns the maximum distance for DM shells
+
+    Returns
+    -------
+    int
+        The distance limit in [AU].
+
+    """
+    return 2100
+
+def get_DM_distances(N,xlim=get_xlim()):
     """
     Returns the dark matter distances.
 
@@ -186,7 +198,7 @@ def get_DM_distances(N,xlim):
     _, ris = get_Plummer_DM(N, xlim)
     return ris
 
-def get_ReversedPlummer_DM(N,xlim):
+def get_ReversedPlummer_DM(N,xlim=get_xlim()):
     """
     Returns a reversed Plummer dark matter model, discretised in mascons.
     
@@ -211,7 +223,7 @@ def get_ReversedPlummer_DM(N,xlim):
     
     return mis, ris
 
-def get_ConstantDensity_DM(N,xlim):
+def get_ConstantDensity_DM(N,xlim=get_xlim()):
     """
     Returns a constant density dark matter model, discretised in mascons.
     
@@ -244,7 +256,7 @@ def get_ConstantDensity_DM(N,xlim):
     return mis, ris
     
 
-def get_Uniform_DM(N,xlim):
+def get_Uniform_DM(N,xlim=get_xlim()):
     """
     Returns a uniform dark matter model, discretised in mascons.
     The average value of the Plummer model is used.
@@ -268,7 +280,7 @@ def get_Uniform_DM(N,xlim):
     
     return np.repeat(np.mean(mis),N), ris
 
-def get_Sinusoidal_DM(N,xlim):
+def get_Sinusoidal_DM(N,xlim=get_xlim()):
     """
     Returns a sinusoidal dark matter model, discretised in mascons.
     The average value of the Plummer model is used.
@@ -294,7 +306,7 @@ def get_Sinusoidal_DM(N,xlim):
     
     return mis, ris
 
-def get_Plummer_DM(N,xlim,rho0=1.69*10**(-10),r0=2474.01):
+def get_Plummer_DM(N,xlim=get_xlim(),rho0=1.69*10**(-10),r0=2474.01):
     """
     Returns the Plummer Dark matter model, discretised in mascons
 
@@ -323,7 +335,7 @@ def get_Plummer_DM(N,xlim,rho0=1.69*10**(-10),r0=2474.01):
     
     return get_PlummerOrBahcall_DM(N, xlim, rho0plum, r0, True)
 
-def get_BahcallWolf_DM(N,xlim,rho0=2.24*10**(-11),r0=2474.01):
+def get_BahcallWolf_DM(N,xlim=get_xlim(),rho0=2.24*10**(-11),r0=2474.01):
     """
     Returns the BahcallWolf-cusp Dark matter model, discretised in mascons
 
@@ -402,6 +414,8 @@ def get_PlummerOrBahcall_DM(N,xlim,rho0,r0,PLUM=True):
     newris = []
     for i in range(len(ris)-1):
         newris.append((ris[i]+ris[i+1])/2)
+    
+    # newris = ris
     
     
     #Divides [0,xlim] in N+1 parts and takes the borders
@@ -629,7 +643,7 @@ def buildTaylorIntegrator(PNCORR,N,include_variational_eqs=True,compact_mode = F
         #Speed of light (in m/s, then converted) ~= 4.85 AU / 40 minutes
         c = 299792458 * T_0 / D_0
         #Constant that dictates steepness of sigmoid
-        k = 0.1
+        k = 0.01
         
         #Initial conditions:
         IC = get_S2_IC()
@@ -1065,7 +1079,7 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, m, v, t,CARTESIANOBS=True,optimiz
     
     # if t % 400 == 0:
     #     plt.figure()
-    #     mis, ris = get_BahcallWolf_DM(N, xlim=2100)
+    #     mis, ris = get_BahcallWolf_DM(N)
     #     # plt.scatter(ris,DMm0,label='Mascon shells',alpha=1 - (t/100),color='blue')
     #     plt.scatter(ris,mis,label='True')
     #     plt.scatter(ris,DMm0,label='Reconstructed',color='orange')
@@ -1212,7 +1226,7 @@ def corrector(ta, x0, DMm0, obs, t_obs, alpha, m, v, t,CARTESIANOBS=True,optimiz
     
     
     #Monotonous density constraint:
-    # ris = np.array(get_DM_distances(N, 2100))
+    # ris = np.array(get_DM_distances(N))
     
     # vols = 4*np.pi*(ris**3)/3
     # for i in range(1,len(vols)):
@@ -1259,6 +1273,7 @@ def getGoodnessOfFit(ta, ic_guess, dm_guess, obslist,noisefactor=0):
     ta.state[:] = np.append(ic_guess,np.array(variationalEqsInitialConditions(N)))
     ta.time = 0
     ta.pars[:N] = dm_guess
+    ta.pars[N:] = get_DM_distances(N)
     out = ta.propagate_grid(t_grid)
     finalsim = np.asarray(out[4][:,[0,1,2,3,4,5]])
     finalsim = convertToCartesian(finalsim[:,0], finalsim[:,1], finalsim[:,2],\
@@ -1386,7 +1401,7 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     #batch 1, 1e-6, 4000, Adam, works great
     #all obs, 1e-5, 3000, Adam, gets very close to 0, but 500 iters gets close enough
-    iterations = 500
+    iterations = 2500
     #TODO: Decide on stop criterion
     #TODO: add a 'verbose'/'plotting' parameter
     
@@ -1399,7 +1414,7 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     # ta = buildTaylorIntegrator(True, N,compact_mode=True,LOAD_PICKLE=False)
     ta = buildTaylorIntegrator(True, N,LOAD_PICKLE=True)
     #Set DM distances
-    ta.pars[N:] = get_DM_distances(N, xlim=2100)
+    ta.pars[N:] = get_DM_distances(N)
     
     # Number of mascons is ~linear with runtime
     
@@ -1879,12 +1894,10 @@ class ReconstructDM:
 
 def getBestBahcallFit(filename,N): 
     
-    def obsloss(ta,ic_guess,x,obslist):
-        xlim = 2100
-        
+    def obsloss(ta,ic_guess,x,obslist):        
         rho0 = x[0]
         
-        dm_guess,_ = get_BahcallWolf_DM(N, xlim,rho0)
+        dm_guess,_ = get_BahcallWolf_DM(N,rho0=rho0)
         
         return getGoodnessOfFit(ta,ic_guess,dm_guess,obslist)
     
@@ -1930,7 +1943,7 @@ def getBestBahcallFit(filename,N):
     
     
     # plt.figure()
-    reconmis, ris = get_BahcallWolf_DM(5,2100,pop.champion_x[0])
+    reconmis, ris = get_BahcallWolf_DM(5,rho0=pop.champion_x[0])
     # lb = udp.get_bounds()[0][0]
     # ub = udp.get_bounds()[1][0]
     # lbmis, ris = get_BahcallWolf_DM(5,2100,lb)
@@ -1951,7 +1964,7 @@ def getBestPlummerFit(filename,N):
         rho0 = x[0]
         r0 = x[1]
         
-        dm_guess,_ = get_Plummer_DM(N, xlim,rho0,r0)
+        dm_guess,_ = get_Plummer_DM(N, rho0=rho0,r0=r0)
         
         return getGoodnessOfFit(ta,ic_guess,dm_guess,obslist)
     
@@ -1976,8 +1989,6 @@ def getBestPlummerFit(filename,N):
     
     pg.set_global_rng_seed(0)
     
-    xlim = 2100
-    
     udp = ReconstructBahcall(filename,N)
     prob = pg.problem(udp)
     
@@ -1998,7 +2009,7 @@ def getBestPlummerFit(filename,N):
     
     
     # plt.figure()
-    reconmis, ris = get_Plummer_DM(N,xlim,pop.champion_x[0],pop.champion_x[1])
+    reconmis, ris = get_Plummer_DM(N,rho0=pop.champion_x[0],r0=pop.champion_x[1])
     # lb = udp.get_bounds()[0][0]
     # ub = udp.get_bounds()[1][0]
     # lbmis, ris = get_BahcallWolf_DM(5,2100,lb)
@@ -2036,12 +2047,10 @@ def lossesForDifferentNoiseProfiles(dm_guess,noisefactor):
 
 
 def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
-    xlim = 2100
-    
     ta = buildTaylorIntegrator(True, N,LOAD_PICKLE=True)
     ic_guess = get_S2_IC()
     
-    mis,ris = get_BahcallWolf_DM(N, xlim)
+    mis,ris = get_BahcallWolf_DM(N)
     
     M_0, D_0, T_0 = getBaseUnitConversions()
         
@@ -2055,6 +2064,8 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
     observationlist = np.column_stack((obstimes, ry,rx, vz))
     
     obslist = addNoiseToObservations(observationlist,ADD_NOISE=True,noisefactor=noisefactor)
+    
+    #obslist is in AU
     
     # import itertools
     # possdmvalues = list(np.linspace(0,0.0006,10))
@@ -2157,6 +2168,9 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
     crange = (crange[1:] + crange[:-1]) / 2
     
     
+    
+    minList = []
+    maxList = []
     plt.figure()
     for i in reversed(range(len(lossbands))):
         losslim = lossbands[i]
@@ -2182,7 +2196,10 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
         plt.plot(ris,mins,color=rgba,label='loss<={}({}%)'.format(round(losslim,2),i))
         # plt.plot(ris,mins,color=rgba,label='loss={}'.format(round(losslim,2)))
         plt.plot(ris,maxs,color=rgba)
-    
+        
+        minList.append(mins)
+        maxList.append(maxs)
+        
     # cbar = plt.colorbar()
     # cbar.set_label("Loss",fontsize=12)
     # plt.clim(cmin,cmax)
@@ -2194,11 +2211,57 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
     # plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
     plt.axvline(rp,linestyle='--',color='black')
     plt.axvline(ra,linestyle='--',color='black')
-    
     plt.scatter(ris,mis,label='True loss={}'.format(round(trueloss,2)))
-    
     plt.legend()
     
+    
+    
+    
+    #X points: 
+    # xlim = get_xlim()
+    # rDM = np.linspace(0,xlim,1000)
+    # def getEnclosedMass(mis):
+    #     #DM shell distances
+    #     ris = get_DM_distances(N)
+    #     k = 0.01
+    #     # Mascon model (mi, ri), sigmoid approximation of step function
+    #     listOfSigs = [0.5 + 0.5 * np.tanh( k * (rDM - ris[i])) for i in range(N)]
+    
+    #     listOfRis = [mis[i]* listOfSigs[i] for i in range(N)]
+    
+    #     suml = listOfSigs[0]
+    #     for i in range(1,N):
+    #         suml = suml + listOfSigs[i]
+            
+    #     sumRis = listOfRis[0]
+    #     for i in range(1,N):
+    #         sumRis = sumRis + listOfRis[i]
+        
+    #     return sumRis
+    
+    #Plot enclosed mass:
+    # plt.figure()
+    # for i in reversed(range(len(lossbands))):
+    #     losslim = lossbands[i]
+        
+    #     cmap = plt.cm.get_cmap('rainbow')
+
+    #     rgba = cmap(crange[i])
+    #     # plt.plot(ris,mins,color=rgba,label='loss={}({}sig)'.format(round(losslim,2),i+1))
+    #     plt.plot(rDM,getEnclosedMass(minList[i]),color=rgba,label='loss<={}({}%)'.format(round(losslim,2),i))
+    #     # plt.plot(ris,mins,color=rgba,label='loss={}'.format(round(losslim,2)))
+    #     plt.plot(rDM,getEnclosedMass(maxList[i]),color=rgba)
+    
+    
+    # plt.ylabel('Enclosed mass [MBH masses]')
+    # plt.xlabel('Distance from MBH [AU]')
+    # rp = 119.52867
+    # ra = 1948.96214
+    # # plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    # plt.axvline(rp,linestyle='--',color='black')
+    # plt.axvline(ra,linestyle='--',color='black')
+    # plt.scatter(ris,mis,label='True loss={}'.format(round(trueloss,2)))
+    # plt.legend()
     
     
     
@@ -2359,7 +2422,7 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
 #     ta = buildTaylorIntegrator(True, N, LOAD_PICKLE=True)
 #     ta.state[:] = np.append(x0,np.array(variationalEqsInitialConditions(N)))
 #     ta.pars[:N] = DM
-#     ta.pars[N:] = get_DM_distances(N, xlim=2100)
+#     ta.pars[N:] = get_DM_distances(N)
 #     ta.time = 0
 #     #Simulate ta from initial guess (t=0) until t_obs
 #     out = ta.propagate_grid(t_obs)
@@ -2521,9 +2584,9 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
 #     # print(uncertainties)
 #     # uncertainties = [paramUncertaintiesMax[0],paramUncertaintiesMin[0]]
 #     # print(uncertainties)
-#     ris = get_DM_distances(N, xlim=2100)
+#     ris = get_DM_distances(N)
 #     plt.figure()
-#     mis,ris = get_BahcallWolf_DM(N, xlim=2100)
+#     mis,ris = get_BahcallWolf_DM(N)
 #     plt.scatter(ris,mis,label='True')
 #     plt.scatter(ris,dm_guess,label='Reconstructed',color='orange')
 #     plt.errorbar(ris,dm_guess,uncertainties,capsize=5,label='1 sigma',fmt='none',color='orange')

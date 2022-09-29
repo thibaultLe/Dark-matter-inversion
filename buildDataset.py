@@ -9,7 +9,7 @@ import numpy as np
 import orbitModule
 
 
-def buildDatasets(Ns,xlim):
+def buildDatasets(Ns):
     print("Building datasets")
     IC = orbitModule.get_S2_IC()
     
@@ -21,7 +21,7 @@ def buildDatasets(Ns,xlim):
     for N in Ns:
         for name in names:
             getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
-            mis, ris = getTrueDM(N,xlim)
+            mis, ris = getTrueDM(N)
             
             rx,ry,rz,vx,vy,vz = orbitModule.simulateOrbitsCartesian(True, IC, mis, ris, timegrid)
             rx, ry, vz = orbitModule.convertXYVZtoArcsec(rx, ry, vz)
@@ -40,14 +40,11 @@ if __name__ == "__main__":
     #Amount of mascons:
     Ns = [5,10]
     
-    #Set dark matter distribution AU limit:
-    xlim = 2100
-    
     #Build the datasets
-    buildDatasets(Ns, xlim)
+    # buildDatasets(Ns)
     
     #Setup the taylor integrators
-    # setupTaylorIntegrators(Ns)
+    setupTaylorIntegrators(Ns)
     
 
 

@@ -22,7 +22,7 @@ def compare1PNtoN():
     #Dark matter:
     N = 5
     mis = N*[0] #-> 0 dark matter, has no effect
-    ris = orbitModule.get_DM_distances(N, 2100)
+    ris = orbitModule.get_DM_distances(N)
     
     rx,ry,rz, vx,vy,vz = orbitModule.simulateOrbitsCartesian(False,IC, mis, ris,timegrid)
     rxPN,ryPN,rzPN, vxPN,vyPN,vzPN = orbitModule.simulateOrbitsCartesian(True,IC, mis, ris,timegrid)

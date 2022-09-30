@@ -1,4 +1,7 @@
 # Dark-matter-inversion
-Repo for the dark matter inversion project of ESA's Advanced Concepts Team
+Welcome to the repo for the dark matter inversion project of ESA's Advanced Concepts Team.
 
-The main functions can be found in orbitModule.py. Datasets are under /Datasets.
+The code is built around a main module (orbitModule.py), containing the most important functions.
+All other scripts use this module and you can run our experiments from there (e.g. reconstructDistribution.py, simulateOrbits.py, ...).
+
+The datasets used can be found under /Datasets.

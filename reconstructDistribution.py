@@ -72,14 +72,11 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,stddevs=[]):
     
     ax11.scatter(ris,dm_guess,label='Initial guess',color='grey',alpha=0.5)
     
-    # misPlum,_ = orbitModule.get_Plummer_DM(N, xlim)
-    # ax11.scatter(ris,misPlum,label='Plummer')
-    
-    # ax11.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    # ax11.axvline(rp,linestyle='--',label='$r_a$ and $r_p$',color='black')
     ax11.axvline(ra,linestyle='--',color='black')
     ax11.axvline(rp,linestyle='--',color='black')
-    ax11.set_xlabel("Distance from MBH [AU]")
-    ax11.set_ylabel("Mass [% MBH mass]")
+    ax11.set_xlabel("$r$ [AU]")
+    ax11.set_ylabel(r'Shell mass [% of $M_\bullet$]')
     ax11.set_xlim(0,2100)
     ax11.legend(loc='best')
 
@@ -103,13 +100,13 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,stddevs=[]):
         return (4 * a**3 * np.pi * (a/r0)**(-7/4) * rho0cusp) / (3 - (7/4))
     
     # plt.figure()
-    ax12.set_xlabel('Distance from MBH [AU]')
-    ax12.set_ylabel('Mass [% MBH mass]')
+    ax12.set_xlabel('$r$ [AU]')
+    ax12.set_ylabel(r'Enclosed mass [% of $M_\bullet$]')
     # plt.plot(rDM,enclosedMassPlum(rDM),label='Plum model')
     ax12.plot(rDM,sumRisTrue,label='True')
     ax12.plot(rDM,sumRis,label='Reconstructed')
     ax12.plot(rDM,sumRisInit,label='Initial guess',color='grey',alpha=0.5)
-    # ax12.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    # ax12.axvline(rp,linestyle='--',label='$r_a$ and $r_p$',color='black')
     ax12.axvline(ra,linestyle='--',color='black')
     ax12.axvline(rp,linestyle='--',color='black')
     ax12.legend()
@@ -147,12 +144,12 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,stddevs=[]):
     
     # if 0 not in initdens:
     ax13.scatter(ris,initdens,label='Initial guess',color='grey',alpha=0.5)
-    # ax13.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    # ax13.axvline(rp,linestyle='--',label='$r_a$ and $r_p$',color='black')
     ax13.axvline(ra,linestyle='--',color='black')
     ax13.axvline(rp,linestyle='--',color='black')
     # ax13.set_ylabel('Density [MBH masses/(AU³)')
-    ax13.set_ylabel('Density [kg/m³]')
-    ax13.set_xlabel('Distance from MBH [AU]')
+    ax13.set_ylabel('Density [kg/$m^3$]')
+    ax13.set_xlabel('$r$ [AU]')
     ax13.set_yscale('log')
     # ax13.set_ylim(1e-15)
     ax13.set_xlim(0,2100)
@@ -245,18 +242,19 @@ def reconstructFromTrueMasses(noisefactor = 0,name='Plummer'):
     
     ic_guess = orbitModule.get_S2_IC()
     
-    # dm_guess = N*[0]
+    dm_guess = N*[0]
     
-    noiseLevel = 0.00005
-    noise = np.random.normal(0,noiseLevel,len(mis))
-    dm_guess = mis.copy() + noise
-    dm_guess = [0 if i < 0 else i for i in dm_guess]
+    # noiseLevel = 0.00005
+    # np.random.seed(42)
+    # noise = np.random.normal(0,noiseLevel,len(mis))
+    # dm_guess = mis.copy() + noise
+    # dm_guess = [0 if i < 0 else i for i in dm_guess]
     
     #Times of observation in [seconds/T_0]
     M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
     
     
-    obstimes =  orbitModule.getObservationTimes()
+    obstimes =  orbitModule.getObservationTimes(nbrOfOrbits=1)
     
     
     reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
@@ -348,11 +346,10 @@ Set your desired parameters at the top,
 if __name__ == "__main__":
     
     #Reconstruct all datasets
-    # reconstructAllDatasets(noisefactor=0)
+    # reconstructAllDatasets(noisefactor=1e-1)
     
-    #Possible names: Plummer, BahcallWolf, Sinusoidal, Uniform,ConstantDensity,
-    # ReversedPlummer
-    reconstructFromTrueMasses(noisefactor = 0,name='Plummer')
+    #Possible names: Plummer,BahcallWolf,Sinusoidal,Uniform,ReversedPlummer,ConstantDensity
+    reconstructFromTrueMasses(noisefactor = 1,name='Plummer')
     
     #For different noise samples, check the robustness of the reconstruction:
     # checkRobustnessToNoise(noisefactor=1e-1,amountOfRecons=5,name='Plummer')
@@ -364,7 +361,7 @@ if __name__ == "__main__":
     # comparePlummer_BahcallWolfReconstruction(noisefactor=1e-5)
     
     #Look at the loss landscape for different distributions
-    # orbitModule.lossLandscape(N=5,noisefactor=1,nbrOfDistributions=1)
+    # orbitModule.lossLandscape(N=10,noisefactor=1e-1,nbrOfDistributions=500000)
     
     #Calculate the variance of the true loss wrt different noise samples
     # checkLossVariance(noisefactor=1e-2)

@@ -12,11 +12,13 @@ import numpy as np
 import time
 import pickle
 from matplotlib.pylab import plt
-
 from functools import lru_cache
 
+# Increase fontsize of the x and y labels
+plt.rc('axes', labelsize=11)    
 
 
+@lru_cache(maxsize=1) #Cached for quick retrieval
 def getBaseUnitConversions():
     """
     Returns the base unit conversions, as we are using scaled units
@@ -47,6 +49,7 @@ def getBaseUnitConversions():
     return M_0, D_0, T_0
 
 
+@lru_cache(maxsize=1) #Cached for quick retrieval
 def getObservationTimes(nbrOfOrbits=1):
     """
     Returns observation times in years
@@ -65,7 +68,8 @@ def getObservationTimes(nbrOfOrbits=1):
     M_0, D_0, T_0 = getBaseUnitConversions()
     
     #Time of apocentre + 1 full orbit
-    obstimes = 2.010356112597776246e+03 + np.linspace(0,16.056740695411154*nbrOfOrbits,300*nbrOfOrbits)
+    obstimes = 2.010356112597776246e+03 + \
+        np.linspace(0,16.056740695411154*nbrOfOrbits,300*nbrOfOrbits)
     
     return obstimes
 
@@ -119,6 +123,7 @@ def convertXYVZtoArcsec(rx,ry,vz):
     """
     return AU_to_arcseconds(rx), AU_to_arcseconds(ry), vz/1000
 
+@lru_cache(maxsize=1) #Cached for quick retrieval
 def get_S2_IC():
     """
     Returns the initial conditions for S2 at t0 = 2010.3561125977762.
@@ -178,6 +183,7 @@ def get_xlim():
     """
     return 2100
 
+@lru_cache(maxsize=1) #Cached for quick retrieval
 def get_DM_distances(N,xlim=get_xlim()):
     """
     Returns the dark matter distances.
@@ -1401,8 +1407,11 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     #batch 1, 1e-6, 4000, Adam, works great
     #all obs, 1e-5, 3000, Adam, gets very close to 0, but 500 iters gets close enough
-    iterations = 2500
+    iterations = 2700
     #TODO: Decide on stop criterion
+    
+    #No noise -> 5k iters, take lowest loss
+    
     #TODO: add a 'verbose'/'plotting' parameter
     
     ICiterations = np.array([ic_guess])
@@ -1423,6 +1432,10 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     #Print progress of the iterations
     printProgressBar(0, iterations, prefix = 'Progress:', suffix = 'Complete', length = 50)
     start = time.time()
+    
+    best_ic_guess = ic_guess
+    best_dm_guess = dm_guess
+    iterlim = iterations
     
     for t in range(iterations):
         if t != 0 and iterations > 10 and (t+1) % round(iterations/10) == 0: 
@@ -1464,6 +1477,11 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
         loss = getGoodnessOfFit(ta,ic_guess,dm_guess,obslist,noisefactor)
         losses.append(loss)
         
+        if loss == min(losses):
+            best_ic_guess = ic_guess
+            best_dm_guess = dm_guess
+            iterlim = len(losses)
+        
         #Stop criterion depends on noisefactor:
         #NF == 0 -> Stop at loss < 1e-5
         # if noisefactor == 0 and loss < 1:
@@ -1472,9 +1490,9 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
         
     
     #1 last simulation of the final guess:
-    ta.state[:6] = ic_guess
+    ta.state[:6] = best_ic_guess
     ta.time = 0
-    ta.pars[:N] = dm_guess
+    ta.pars[:N] = best_dm_guess
     out = ta.propagate_grid(t_grid)
     finalsim = np.asarray(out[4][:,[0,1,2,3,4,5]])
     if CARTESIANOBS:
@@ -1513,7 +1531,7 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     # print('Reconstructed DM:  ',list(dm_guess))
     # print("")
         
-    iters = np.arange(0,iterations+1,1)
+    iters = np.arange(0,iterlim,1)
     
     
     #Plot convergence of initial conditions:
@@ -1536,7 +1554,8 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     
     print('Loss before training =', losses[0])
-    print('Loss after training =', losses[-1])
+    # print('Loss after training =', losses[-1])
+    print('Loss after training =', min(losses))
     
     
     xdifs = 1e6*(AU_to_arcseconds(finalsim[:,0])-AU_to_arcseconds(observationlist[:,0]))
@@ -1554,22 +1573,25 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     #Can only plot X,Y and VZ differences for cartesian observations
     if CARTESIANOBS:
         fig, ((ax11,ax12,ax13,ax14)) = plt.subplots(1,4)
-        fig.set_size_inches(19,4)
+        # fig.set_size_inches(19,4)
+        fig.set_size_inches(14,3)
         fig.set_tight_layout(True)
         
         #Plot losses:
-        ax11.scatter(iters,losses,color='blue',s=8)
+            
+        ax11.scatter(iters,losses[:iterlim],color='blue',s=8)
         ax11.set_yscale('log')
         ax11.set_ylabel("Loss")
         ax11.set_xlabel("Number of iterations")
-        ax11.set_title("Gradient descent")
+        # ax11.set_title("Gradient descent")
+        
         
         # plt.figure()
-        ax12.scatter(timegrid,1e6*(AU_to_arcseconds(initialsim[:,0])-AU_to_arcseconds(observationlist[:,0])),color='lightgrey',s=8,label='Initial difference')
-        ax12.scatter(timegrid,1e6*(AU_to_arcseconds(finalsim[:,0])-AU_to_arcseconds(observationlist[:,0])),color='blue',s=8,label='Final difference')
-        ax12.set_ylabel("Difference with observation [µas]")
+        ax12.scatter(timegrid,1e6*(AU_to_arcseconds(initialsim[:,1])-AU_to_arcseconds(observationlist[:,1])),color='lightgrey',s=8,label='Initial difference')
+        ax12.scatter(timegrid,1e6*(AU_to_arcseconds(finalsim[:,1])-AU_to_arcseconds(observationlist[:,1])),color='blue',s=8,label='Final difference')
+        ax12.set_ylabel("$\mathrm{RA(sim)} - \mathrm{RA(obs)}$ [µas]")
         ax12.set_xlabel("Time [years]")
-        ax12.set_title("X simulated - X observed")
+        # ax12.set_title("Y simulated - Y observed")
         if NF != 0:
             ax12.plot(timegrid,len(timegrid)*[NF*50],'--',label='Precision',color='red')
             ax12.plot(timegrid,len(timegrid)*[NF*-50],'--',color='red')
@@ -1577,11 +1599,11 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
         ax12.legend()
         
         # plt.figure()
-        ax13.scatter(timegrid,1e6*(AU_to_arcseconds(initialsim[:,1])-AU_to_arcseconds(observationlist[:,1])),color='lightgrey',s=8,label='Initial difference')
-        ax13.scatter(timegrid,1e6*(AU_to_arcseconds(finalsim[:,1])-AU_to_arcseconds(observationlist[:,1])),color='blue',s=8,label='Final difference')
-        ax13.set_ylabel("Difference with observation [µas]")
+        ax13.scatter(timegrid,1e6*(AU_to_arcseconds(initialsim[:,0])-AU_to_arcseconds(observationlist[:,0])),color='lightgrey',s=8,label='Initial difference')
+        ax13.scatter(timegrid,1e6*(AU_to_arcseconds(finalsim[:,0])-AU_to_arcseconds(observationlist[:,0])),color='blue',s=8,label='Final difference')
+        ax13.set_ylabel("$\mathrm{DEC(sim)} - \mathrm{DEC(obs)}$ [µas]")
         ax13.set_xlabel("Time [years]")
-        ax13.set_title("Y simulated - Y observed")
+        # ax13.set_title("X simulated - X observed")
         if NF != 0:
             ax13.plot(timegrid,len(timegrid)*[NF*50],'--',label='Precision',color='red')
             ax13.plot(timegrid,len(timegrid)*[NF*-50],'--',color='red')
@@ -1601,7 +1623,7 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
                 ax11.plot(timegrid,len(timegrid)*[-50],'--',color='red')
             ax11.set_ylabel("Difference with observation [µas]")
             ax11.set_xlabel("Time [years]")
-            ax11.set_title("Z simulated - Z observed")
+            # ax11.set_title("Z simulated - Z observed")
             ax11.legend()
             
             # plt.figure()
@@ -1612,7 +1634,7 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
                 ax12.plot(timegrid,len(timegrid)*[-10],'--',color='red')
             ax12.set_ylabel("Difference with observation [km/s]")
             ax12.set_xlabel("Time [years]")
-            ax12.set_title("VX simulated - VX observed")
+            # ax12.set_title("VX simulated - VX observed")
             ax12.legend()
             
             # plt.figure()
@@ -1623,15 +1645,15 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
                 ax13.plot(timegrid,len(timegrid)*[-10],'--',color='red')
             ax13.set_ylabel("Difference with observation [km/s]")
             ax13.set_xlabel("Time [years]")
-            ax13.set_title("VY simulated - VY observed")
+            # ax13.set_title("VY simulated - VY observed")
             ax13.legend()
         
         # plt.figure()
-        ax14.scatter(timegrid,initialsim[:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000),color='lightgrey',s=8,label='Initial difference')
-        ax14.scatter(timegrid,finalsim[:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000),color='blue',s=8,label='Final difference')
-        ax14.set_ylabel("Difference with observation [km/s]")
+        ax14.scatter(timegrid,-initialsim[:,-1]* D_0 / (T_0 * 1000)+observationlist[:,-1]* D_0 / (T_0 * 1000),color='lightgrey',s=8,label='Initial difference')
+        ax14.scatter(timegrid,-finalsim[:,-1]* D_0 / (T_0 * 1000)+observationlist[:,-1]* D_0 / (T_0 * 1000),color='blue',s=8,label='Final difference')
+        ax14.set_ylabel("$\mathrm{RV(sim)} - \mathrm{RV(obs)}$ [km/s]")
         ax14.set_xlabel("Time [years]")
-        ax14.set_title("VZ simulated - VZ observed")
+        # ax14.set_title("-VZ simulated + VZ observed")
         if NF != 0:
             ax14.plot(timegrid,len(timegrid)*[NF*10],'--',label='Precision',color='red')
             ax14.plot(timegrid,len(timegrid)*[NF*-10],'--',color='red')
@@ -2081,7 +2103,28 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
     for i in range(nbrOfDistributions):
         # dm_guess_new = Nf*[0]
         np.random.seed(i)
+        noise = np.random.normal(0,0.0001,N)
+        dm_new = mis+noise
+        dms.append(dm_new.clip(min=0))
+    
+    for i in range(nbrOfDistributions):
+        # dm_guess_new = Nf*[0]
+        np.random.seed(i)
         noise = np.random.normal(0,0.0002,N)
+        dm_new = mis+noise
+        dms.append(dm_new.clip(min=0))
+        
+    for i in range(nbrOfDistributions):
+        # dm_guess_new = Nf*[0]
+        np.random.seed(i)
+        noise = np.random.normal(0,0.0003,N)
+        dm_new = mis+noise
+        dms.append(dm_new.clip(min=0))
+        
+    for i in range(nbrOfDistributions):
+        # dm_guess_new = Nf*[0]
+        np.random.seed(i)
+        noise = np.random.normal(0,0.0004,N)
         dm_new = mis+noise
         dms.append(dm_new.clip(min=0))
     
@@ -2093,7 +2136,9 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
     
     trueloss = getGoodnessOfFit(ta, ic_guess, mis, obslist,noisefactor)
     print('True loss:',trueloss)
+    print("Testing {} distributions...".format(nbrOfDistributions))
     
+    print("Estimated wait time: ~100 minutes for 1 million distributions")
     
     start = time.time()
     
@@ -2189,13 +2234,23 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
             maxs = mis
             
         cmap = plt.cm.get_cmap('rainbow')
+        
+        for j in range(len(mins)):
+            if mins[j] > mis[j]:
+                mins[j] = mis[j]
+            
+            if maxs[j] < mis[j]:
+                maxs[j] = mis[j]
 
 
         rgba = cmap(crange[i])
         # plt.plot(ris,mins,color=rgba,label='loss={}({}sig)'.format(round(losslim,2),i+1))
-        plt.plot(ris,mins,color=rgba,label='loss<={}({}%)'.format(round(losslim,2),i))
+        plt.plot(ris,100*np.array(mins),color=rgba,label='loss<={}({}%)'.format(round(losslim,2),i))
         # plt.plot(ris,mins,color=rgba,label='loss={}'.format(round(losslim,2)))
-        plt.plot(ris,maxs,color=rgba)
+        plt.plot(ris,100*np.array(maxs),color=rgba)
+        
+        print(mins)
+        print(maxs)
         
         minList.append(mins)
         maxList.append(maxs)
@@ -2204,14 +2259,15 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
     # cbar.set_label("Loss",fontsize=12)
     # plt.clim(cmin,cmax)
     
-    plt.ylabel('Mass [MBH masses]')
-    plt.xlabel('Distance from MBH [AU]')
+    plt.ylabel(r'Shell mass [% of $M_\bullet$]')
+    plt.xlabel("$r$ [AU]")
+    
     rp = 119.52867
     ra = 1948.96214
     # plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
     plt.axvline(rp,linestyle='--',color='black')
     plt.axvline(ra,linestyle='--',color='black')
-    plt.scatter(ris,mis,label='True loss={}'.format(round(trueloss,2)))
+    plt.scatter(ris,100*np.array(mis),label='True loss={}'.format(round(trueloss,2)))
     plt.legend()
     
     

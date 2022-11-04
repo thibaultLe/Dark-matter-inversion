@@ -16,7 +16,7 @@ def buildDatasets(Ns):
     timegrid = orbitModule.getObservationTimes()
     
     #Distributions:
-    names = ['Plummer','BahcallWolf','Uniform','Sinusoidal']
+    names = ['Plummer','BahcallWolf','Uniform','Sinusoidal','ReversedPlummer']
     
     for N in Ns:
         for name in names:
@@ -41,10 +41,10 @@ if __name__ == "__main__":
     Ns = [5,10]
     
     #Build the datasets
-    # buildDatasets(Ns)
+    buildDatasets(Ns)
     
     #Setup the taylor integrators
-    setupTaylorIntegrators(Ns)
+    # setupTaylorIntegrators(Ns)
     
 
 

@@ -65,15 +65,17 @@ def plotMasconsMass(N=20,k=0.1,name='Plummer'):
     
     #Plot enclosed mass
     plt.figure()
-    plt.xlabel('Distance from MBH [AU]')
     if name == 'Plummer':
-        plt.plot(rDM,enclosedMassPlum(rDM,rho0plum),label='Plummer model')
+        plt.plot(rDM,100*np.array(enclosedMassPlum(rDM,rho0plum)),label='Plummer model')
     elif name == 'BahcallWolf':
         plt.plot(rDM,np.append(0,enclosedMassCusp(rDM[1:],rho0cusp)),label='Bahcall-wolf model')
     
-    plt.plot(rDM,sumRis,label='Mascon shell model',color='tab:orange')
-    plt.ylabel('Enclosed mass [MBH masses]')
-    plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    plt.plot(rDM,100*np.array(sumRis),label='Mascon shell model',color='tab:orange')
+    # plt.ylabel('Enclosed mass [MBH masses]')
+    # plt.xlabel('Distance from MBH [AU]')
+    plt.xlabel('$r$ [AU]')
+    plt.ylabel(r'Enclosed mass [% of $M_\bullet$]')
+    plt.axvline(rp,linestyle='--',label='$r_p$ and $r_a$',color='black')
     plt.axvline(ra,linestyle='--',color='black')
     # plt.scatter(ris,np.cumsum(mis),label='Mascon shells',color='orange')
     # plt.bar(ris,np.cumsum(mis),width=(xlim)/(N),alpha=0.2,align='edge',edgecolor='orange',color='orange')
@@ -400,7 +402,7 @@ def plotDifferencePlumVsBahcall(N=100):
 
 if __name__ == "__main__":
     #Plot the mascon enclosed mass and individual masses for different profiles:
-    plotMasconsMass(N=5,k=0.01)
+    plotMasconsMass(N=10,k=0.01)
     # plotMasconsMass(N=10,k=0.01,name='ConstantDensity')
     # plotMasconsMass(N=30,k=0.01,name='Sinusoidal')
     

@@ -28,13 +28,17 @@ def simulateOrbit(N,nbrOfOrbits=1):
     #Plot position and MBH
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.plot(rx, ry, rz, label='Orbit of S2')
+    # ax.plot(rx, ry, rz, label='Orbit of S2')
+    ax.plot(rz, ry, rx, label='Orbit of S2')
     # ax.scatter(rx[0], ry[0], rz[0], label='Start',color='lawngreen')
     # ax.scatter(rx[-1], ry[-1], rz[-1], label='End',color="red")
     ax.scatter(0,0,0,color='black',label="MBH")
-    ax.set_xlabel('X [AU]')
-    ax.set_ylabel('Y [AU]')
-    ax.set_zlabel('Z [AU]')
+    # ax.set_xlabel('X/DEC [AU]')
+    # ax.set_ylabel('Y/RA [AU]')
+    # ax.set_zlabel('Z/away from earth [AU]')
+    ax.set_xlabel('Z/away from earth [AU]')
+    ax.set_ylabel('Y/RA [AU]')
+    ax.set_zlabel('X/DEC [AU]')
     
     #Plot DM shells (3D spheres)
     u = np.linspace(0, 2 * np.pi, 20)
@@ -48,7 +52,8 @@ def simulateOrbit(N,nbrOfOrbits=1):
         #Only plot if dark matter mass is not zero
         if mis[i] != 0:
             surf =ax.plot_surface(ris[i]*x_sphere, ris[i]*y_sphere, ris[i]*z_sphere,  \
-                rstride=1, cstride=1, color='black', linewidth=0, alpha=0.05,label='DM shell(s)')
+                rstride=1, cstride=1, color='black',  \
+                linewidth=0, alpha=0.05,label='DM shells')
             surf._facecolors2d = surf._facecolor3d
             surf._edgecolors2d = surf._edgecolor3d
             
@@ -59,7 +64,11 @@ def simulateOrbit(N,nbrOfOrbits=1):
     handles, labels = plt.gca().get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys())
+    
+    fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+    ax.view_init(22,-140)
     plt.show()
+    
     
     
     #Plot velocity

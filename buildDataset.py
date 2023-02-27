@@ -41,10 +41,10 @@ if __name__ == "__main__":
     Ns = [5,10]
     
     #Build the datasets
-    buildDatasets(Ns)
+    # buildDatasets(Ns)
     
     #Setup the taylor integrators
-    # setupTaylorIntegrators(Ns)
+    setupTaylorIntegrators(Ns)
     
 
 

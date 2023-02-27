@@ -29,9 +29,12 @@ def enclosedMassCusp(a,rho0):
     r0 = 2474.01
     return (4 * a**3 * np.pi * (a/r0)**(-7/4) * rho0) / (3 - (7/4))
 
+def enclosedMassAlpha(a,r0):
+    return ((a/r0)**11)  *  ( 1 + (a/r0)**10)**(-11/10) / 1000
+
 
 def plotMasconsMass(N=20,k=0.1,name='Plummer'):
-    #Possible names: Plummer, BahcallWolf, Sinusoidal, Uniform, ConstantDensity
+    #Possible names: Plummer, BahcallWolf, Sinusoidal, Uniform, ConstantDensity, Alpha
     
     
     rho0plum = 1.69*10**(-10) * (D_0**3) / M_0
@@ -47,8 +50,7 @@ def plotMasconsMass(N=20,k=0.1,name='Plummer'):
     
         
     getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
-    mis, ris = getTrueDM(N)
-    
+    mis, ris = getTrueDM(N)    
     
     # Mascon model (mi, ri), sigmoid approximation of step function
     listOfSigs = [0.5 + 0.5 * np.tanh( k * (rDM - ris[i])) for i in range(N)]
@@ -69,6 +71,8 @@ def plotMasconsMass(N=20,k=0.1,name='Plummer'):
         plt.plot(rDM,100*np.array(enclosedMassPlum(rDM,rho0plum)),label='Plummer model')
     elif name == 'BahcallWolf':
         plt.plot(rDM,np.append(0,enclosedMassCusp(rDM[1:],rho0cusp)),label='Bahcall-wolf model')
+    elif name == 'Alpha':
+        plt.plot(rDM,100*np.array(enclosedMassAlpha(rDM,1200)),label='Alpha model')
     
     plt.plot(rDM,100*np.array(sumRis),label='Mascon shell model',color='tab:orange')
     # plt.ylabel('Enclosed mass [MBH masses]')
@@ -401,8 +405,14 @@ def plotDifferencePlumVsBahcall(N=100):
 """
 
 if __name__ == "__main__":
+    
+    N = 5
+    k = orbitModule.get_k_SteepnessFactor(N)
+    
+    
     #Plot the mascon enclosed mass and individual masses for different profiles:
-    plotMasconsMass(N=10,k=0.01)
+    plotMasconsMass(N,k,name='Alpha')
+    plotMasconsMass(N,k,name='Plummer')
     # plotMasconsMass(N=10,k=0.01,name='ConstantDensity')
     # plotMasconsMass(N=30,k=0.01,name='Sinusoidal')
     

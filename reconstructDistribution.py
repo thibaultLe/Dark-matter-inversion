@@ -9,13 +9,14 @@ import os
 import numpy as np
 from matplotlib.pylab import plt
 import orbitModule
+import pandas as pd
 
 #Max x limit in [AU]
 xlim = orbitModule.get_xlim()
-#Sigmoid steepness factor
-k = 0.01
 #Amount of dark matter shells
-N = 10
+N = 5
+#Sigmoid steepness factor
+k = orbitModule.get_k_SteepnessFactor(N)
 
 #Don't change these:
 #X points: 
@@ -155,12 +156,233 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,stddevs=[]):
     ax13.set_xlim(0,2100)
     ax13.legend()
     
-    
     # ax11.set_title('Mass')
     # ax12.set_title('Enclosed mass')
     # ax13.set_title('Density')
     
-
+    
+def plotICRobustness(biglist,names,noisefactor=1):
+    colors = ["tab:blue","tab:orange","tab:green","tab:red","tab:purple"]
+    alpha = 0.2
+    
+    rp = 119.52867
+    ra = 1948.96214
+    
+    fig, ax12 = plt.subplots(1,1)
+    # fig.set_size_inches(19,4)
+    fig.set_size_inches(6,4)
+    fig.set_tight_layout(True)
+    
+    mergedICs = []
+    
+    
+    for i in range(len(names)):
+        reconICs = biglist[i][0]
+        reconmis = biglist[i][1]
+        mis = biglist[i][2]
+        
+        nbrRecons = len(reconICs)
+        #Multiply by 100 to get percentages
+        reconmis = 100*np.array(reconmis)
+        mis = 100*np.array(mis)
+        
+        for ic in reconICs:
+            mergedICs.append(ic)
+    
+        #Plot masses:
+        # ax11.scatter(ris,mis,label=names[i],color=colors[i])
+        # for j in range(1,nbrRecons):
+        #     ax11.scatter(ris,reconmis[j],alpha=alpha,color=colors[i]) 
+        # #Again to get the label;
+        # ax11.scatter(ris,reconmis[0],label='Reconstructed ' + names[i],alpha=alpha,color=colors[i]) 
+        # # ax11.set_ylim(0,1.2*max(mis))
+            
+        
+        
+        # # ax11.axvline(rp,linestyle='--',label='$r_a$ and $r_p$',color='black')
+        # ax11.axvline(ra,linestyle='--',color='black')
+        # ax11.axvline(rp,linestyle='--',color='black')
+        # ax11.set_xlabel("$r$ [AU]")
+        # ax11.set_ylabel(r'Shell mass [% of $M_\bullet$]')
+        # ax11.set_xlim(0,2100)
+        # ax11.legend(loc='best')
+    
+        
+        #Plot enclosed mass:
+        allSumRis = []
+        for j in range(nbrRecons):
+            sumRis = getEnclosedMass(reconmis[j])
+            allSumRis.append(sumRis)
+        sumRisTrue = getEnclosedMass(mis)
+        # sumRisInit = getEnclosedMass(dm_guess)
+        
+        
+        def enclosedMassPlum(a):
+            M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
+            rho0plum = 1.69*10**(-10) * (D_0**3) / M_0
+            r0 = 2474.01
+            return (4 * a**3 * np.pi * r0**3 * rho0plum) / ( 3 * (a**2 + r0**2)**(3/2))
+        
+        def enclosedMassCusp(a):
+            M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
+            r0 = 2474.01
+            rho0cusp = 2.24*10**(-11) * (D_0**3) / M_0
+            return (4 * a**3 * np.pi * (a/r0)**(-7/4) * rho0cusp) / (3 - (7/4))
+        
+        # plt.figure()
+        ax12.set_xlabel('r [AU]')
+        ax12.set_ylabel(r'enclosed mass [% of $M_\bullet$]')
+        # plt.plot(rDM,enclosedMassPlum(rDM),label='Plum model')
+        
+        ax12.plot(rDM,sumRisTrue,label=names[i] + ' GT',color=colors[i])
+        
+        
+        if noisefactor != 0:
+            #Means:
+            means = np.mean(allSumRis,axis=0)
+            stddevs = np.std(allSumRis,axis=0)
+            ax12.plot(rDM,means,"--",label=names[i]+" mean reconstruction",color=colors[i])
+            ax12.fill_between(rDM,means-stddevs,means+stddevs,alpha=alpha, facecolor=colors[i],
+                            label=names[i]+' standard deviation')
+        else:
+            ax12.plot(rDM,sumRisTrue,"--",label=names[i]+" reconstruction",color=colors[i])
+            
+        
+        
+        #All:
+        # for j in range(1,nbrRecons):
+        #     ax12.plot(rDM,allSumRis[j],color=colors[i],alpha=alpha)
+        # #Again to get the label once
+        # ax12.plot(rDM,allSumRis[0],label=names[i] + ' reconstruction',color=colors[i],alpha=alpha)
+        
+        
+        # ax12.plot(rDM,sumRisInit,label='Initial guess',color='grey',alpha=0.5)
+        # ax12.axvline(rp,linestyle='--',label='$r_a$ and $r_p$',color='black')
+        ax12.axvline(ra,linestyle='--',color='black')
+        ax12.axvline(rp,linestyle='--',color='black')
+        ax12.legend()
+        ax12.set_xlim(0,2100)
+        
+    # print(mergedICs)
+    
+    # plt.figure()
+    df = pd.DataFrame(mergedICs, columns = ['p', 'e','i','Om','w','f'])
+    # df.boxplot()
+    print(df.describe())
+    
+    #Convert to degrees:
+    df.i *= 180/np.pi
+    df.Om *= 180/np.pi
+    df.w *= 180/np.pi
+    df.f *= 180/np.pi
+    
+    
+    IC = orbitModule.get_S2_IC()
+    IC[2:] = [i*180/np.pi for i in IC[2:]]
+    
+    fig, ((ax1,ax2,ax3)) = plt.subplots(1,3)
+    # fig.set_size_inches(19,4)
+    fig.set_size_inches(13,3)
+    fig.set_tight_layout(True)
+    
+    
+    plt.rcParams['axes.autolimit_mode'] = 'round_numbers'
+    
+    df.iloc[0:10].plot.scatter(x='p',
+                        y='e',color=colors[0],ax=ax1,label='Plummer')
+    df.iloc[10:20].plot.scatter(x='p',
+                        y='e',color=colors[1],ax=ax1,label='Bahcall-Wolf')
+    df.iloc[20:30].plot.scatter(x='p',
+                        y='e',color=colors[2],ax=ax1,label='Alpha')
+    # ax1.scatter(IC[0],IC[1],label="True")
+    ax1.errorbar(IC[0],IC[1], xerr=noisefactor*0.131, yerr=noisefactor*0.00006, fmt='none')
+    ax1.legend()
+    ax1.set_xlabel(r"$p$ [AU]")
+    ax1.set_ylabel(r"$e$")
+    
+    # ax1 = df.plot.scatter(x='i',
+    #                     y='Om')
+    df.iloc[0:10].plot.scatter(x='i',
+                        y='Om',color=colors[0],ax=ax2,label='Plummer')
+    df.iloc[10:20].plot.scatter(x='i',
+                        y='Om',color=colors[1],ax=ax2,label='Bahcall-Wolf')
+    df.iloc[20:30].plot.scatter(x='i',
+                        y='Om',color=colors[2],ax=ax2,label='Alpha')
+    # ax1.scatter(IC[2],IC[3],label="True")
+    ax2.errorbar(IC[2],IC[3], xerr=noisefactor*0.03, yerr=noisefactor*0.03, fmt='none')
+    ax2.legend()
+    ax2.set_xlabel(r"$\iota$ [°]")
+    ax2.set_ylabel(r"$\Omega$ [°]")
+    
+    # ax1 = df.plot.scatter(x='w',
+    #                     y='f')
+    df.iloc[0:10].plot.scatter(x='w',
+                        y='f',color=colors[0],ax=ax3,label='Plummer')
+    df.iloc[10:20].plot.scatter(x='w',
+                        y='f',color=colors[1],ax=ax3,label='Bahcall-Wolf')
+    df.iloc[20:30].plot.scatter(x='w',
+                        y='f',color=colors[2],ax=ax3,label='Alpha')
+    # ax1.scatter(IC[4],IC[5],label="True")
+    ax3.errorbar(IC[4],IC[5], xerr=noisefactor*0.03, yerr=0, fmt='none')
+    ax3.legend()
+    ax3.set_xlabel(r"$\omega$ [°]")
+    ax3.set_ylabel(r"$f$ [°]")
+    
+    
+            # ic_noisy[0] = ic_noisy[0] + np.random.normal(0,noisefactor*0.131) #p
+            # ic_noisy[1] = ic_noisy[1] + np.random.normal(0,noisefactor*0.00006) #e
+            # ic_noisy[2] = ic_noisy[2] + np.random.normal(0,noisefactor*0.03 / 180 * np.pi) #i
+            # ic_noisy[3] = ic_noisy[3] + np.random.normal(0,noisefactor*0.03 / 180 * np.pi) #om
+            # ic_noisy[4] = ic_noisy[4] + np.random.normal(0,noisefactor*0.03 / 180 * np.pi) #w
+            # ic_noisy[5] = ic_noisy[5] + np.random.normal(0,noisefactor*0) #f
+    
+    
+    #Plot difference in enclosed mass
+    # plt.figure()
+    # ax13.set_xlabel('Distance from MBH [AU]')
+    # ax13.set_ylabel('Enclosed mass [MBH masses]')
+    # ax13.plot(rDM,sumRis - sumRisTrue,label='Reconstructed - True')
+    # ax13.axvline(rp,linestyle='--',label='rp and ra',color='black')
+    # ax13.axvline(ra,linestyle='--',color='black')
+    # ax13.legend()
+    # ax13.set_title('Difference in enclosed mass')
+    
+    
+    #Plot density:
+    # vols = 4*np.pi*(np.array(ris)**3)/3
+    # for i in range(1,len(vols)):
+    #     vols[i] = vols[i] - vols[i-1]
+    
+    # dens = mis/(100*vols)
+    # recondens = reconmis/(100*vols)
+    # # initdens = dm_guess/(100*vols)
+    
+    
+    # M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
+    # dens = dens * M_0 / (D_0**3)
+    # recondens = recondens * M_0 / (D_0**3)
+    # initdens = initdens * M_0 / (D_0**3)
+    
+    # ax13.scatter(ris,dens,label='True')
+    # ax13.scatter(ris,recondens,label='Reconstructed')
+    
+    # # if 0 not in initdens:
+    # ax13.scatter(ris,initdens,label='Initial guess',color='grey',alpha=0.5)
+    # # ax13.axvline(rp,linestyle='--',label='$r_a$ and $r_p$',color='black')
+    # ax13.axvline(ra,linestyle='--',color='black')
+    # ax13.axvline(rp,linestyle='--',color='black')
+    # # ax13.set_ylabel('Density [MBH masses/(AU³)')
+    # ax13.set_ylabel('Density [kg/$m^3$]')
+    # ax13.set_xlabel('$r$ [AU]')
+    # ax13.set_yscale('log')
+    # # ax13.set_ylim(1e-15)
+    # ax13.set_xlim(0,2100)
+    # ax13.legend()
+    
+    
+    # ax11.set_title('Mass')
+    # ax12.set_title('Enclosed mass')
+    # ax13.set_title('Density')
 
 
 def comparePlummer_BahcallWolfReconstruction(noisefactor):
@@ -201,6 +423,7 @@ def reconstructAllDatasets(noisefactor=1):
                 mis, ris = getTrueDM(N,xlim)
                 
                 ic_guess = orbitModule.get_S2_IC()
+                ic_noisy = ic_guess.copy()
                 
                 
                 print('Starting from 0')
@@ -216,22 +439,12 @@ def reconstructAllDatasets(noisefactor=1):
                 # dm_guess = mis.copy() + noise
                 
                 
-                reconic, reconmisInit = orbitModule.reconstructFromFile(filepath,ic_guess,dm_guess, \
-                            noisefactor = noisefactor,seed=0)
+                reconic, reconmisInit = orbitModule.reconstructFromFile(filepath,ic_noisy,dm_guess, \
+                            noisefactor = noisefactor,seed=5)
                
                 
                 plotInitReconTrueMasses(dm_guess,reconmisInit,mis)
                 
-                # print(list(reconmisInit))
-                
-                #0 noise -> 5000+ iterations/loss threshold
-                #1e-2 -> 1200 iterations
-                #1 -> 200 iterations?
-                
-            
-                
-                
-                # break
         else:
             continue
 
@@ -250,9 +463,6 @@ def reconstructFromTrueMasses(noisefactor = 0,name='Plummer'):
     # dm_guess = mis.copy() + noise
     # dm_guess = [0 if i < 0 else i for i in dm_guess]
     
-    #Times of observation in [seconds/T_0]
-    M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
-    
     
     obstimes =  orbitModule.getObservationTimes(nbrOfOrbits=1)
     
@@ -270,17 +480,14 @@ def checkRobustnessToNoise(noisefactor,amountOfRecons,name):
     mis, ris = getTrueDM(N,xlim)
     
     IC = orbitModule.get_S2_IC()
-    ic_guess = IC
-    
-    dm_guess = N*[0]
-    
-    #Times of observation in [seconds/T_0]
-    M_0, D_0, T_0 = orbitModule.getBaseUnitConversions()
     
     obstimes =  orbitModule.getObservationTimes()
     
     reconmises = []
+    #Reconstructs with different noise profiles (random seed changes every iteration)
     for i in range(amountOfRecons):
+        ic_guess = IC.copy()
+        dm_guess = N*[0]
         reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
                               ic_guess,dm_guess, CARTESIANOBS = True,OBS3 = True, \
                               noisefactor = noisefactor,seed=i)
@@ -289,7 +496,61 @@ def checkRobustnessToNoise(noisefactor,amountOfRecons,name):
     mean = np.mean(reconmises,axis=0)
     stddevs = np.std(reconmises,axis=0)
     
+    dm_guess = N*[0]
     plotInitReconTrueMasses(dm_guess,mean,mis,stddevs)
+    
+    
+def checkRobustnessToInitialConditions(noisefactor,amountOfRecons):
+    names = ['Plummer','BahcallWolf','Alpha']
+    
+    #Offset is changed every experiment in order to not have the same seeds
+    seedoffset = 300000
+    
+    #100000 for 1e-1 noise
+    #200000 for 1 noise, 10x orbits
+    #300000 for 1 noise, 10x observations
+    
+    biglist = []
+    for name in names:
+        getTrueDM = getattr(orbitModule,'get_'+name+'_DM')
+        mis, ris = getTrueDM(N,xlim)
+        
+        IC = orbitModule.get_S2_IC()
+        
+        #TODO: set amount of orbits here
+        obstimes =  orbitModule.getObservationTimes(10)
+        
+        
+        reconmises = []
+        reconICs = []
+        #Reconstructs with different initial conditions
+        for i in range(amountOfRecons):
+            #Need to set the seed, otherwise following iterations have the same seed
+            np.random.seed(i+20*len(biglist)+seedoffset)
+            dm_guess = N*[0]
+            
+            ic_noisy = IC.copy()
+            ic_noisy[0] = ic_noisy[0] + np.random.normal(0,0.1*noisefactor*0.131) #p
+            ic_noisy[1] = ic_noisy[1] + np.random.normal(0,0.1*noisefactor*0.00006) #e
+            ic_noisy[2] = ic_noisy[2] + np.random.normal(0,0.1*noisefactor*0.03 / 180 * np.pi) #i
+            ic_noisy[3] = ic_noisy[3] + np.random.normal(0,0.1*noisefactor*0.03 / 180 * np.pi) #om
+            ic_noisy[4] = ic_noisy[4] + np.random.normal(0,0.1*noisefactor*0.03 / 180 * np.pi) #w
+            ic_noisy[5] = ic_noisy[5] + np.random.normal(0,0.1*noisefactor*0) #f
+            
+            
+            reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
+                                  ic_noisy,dm_guess, CARTESIANOBS = True,OBS3 = True, \
+                                  noisefactor = noisefactor,seed=i+20*len(biglist)+seedoffset+1000)
+                
+            reconICs.append(reconic)
+            reconmises.append(reconmis)
+        
+        biglist.append([reconICs, reconmises, mis])
+        # break
+    
+    print(biglist)
+    plotICRobustness(biglist,names)
+    
 
 
 def compareDifferentTimeGrids(noisefactor = 0,name='Plummer'):
@@ -346,13 +607,17 @@ Set your desired parameters at the top,
 if __name__ == "__main__":
     
     #Reconstruct all datasets
-    # reconstructAllDatasets(noisefactor=1e-1)
+    # reconstructAllDatasets(noisefactor=1)
     
+    #Reconstruct specific profiles
     #Possible names: Plummer,BahcallWolf,Sinusoidal,Uniform,ReversedPlummer,ConstantDensity
-    reconstructFromTrueMasses(noisefactor = 1,name='Plummer')
+    # reconstructFromTrueMasses(noisefactor = 1e-1,name='BahcallWolf')
     
     #For different noise samples, check the robustness of the reconstruction:
-    # checkRobustnessToNoise(noisefactor=1e-1,amountOfRecons=5,name='Plummer')
+    # checkRobustnessToNoise(noisefactor=1e-1,amountOfRecons=3,name='Plummer')
+    
+    #For different initial conditions, check the robustness of the reconstruction:
+    checkRobustnessToInitialConditions(noisefactor=1,amountOfRecons=10)
     
     #Compare equi-temporal spacing vs equi-spatial spacing
     # compareDifferentTimeGrids(noisefactor = 1e-1,name='Plummer')
@@ -361,7 +626,9 @@ if __name__ == "__main__":
     # comparePlummer_BahcallWolfReconstruction(noisefactor=1e-5)
     
     #Look at the loss landscape for different distributions
-    # orbitModule.lossLandscape(N=10,noisefactor=1e-1,nbrOfDistributions=500000)
+    # orbitModule.lossLandscape(N=5,noisefactor=1,nbrOfDistributions=250000)
     
     #Calculate the variance of the true loss wrt different noise samples
     # checkLossVariance(noisefactor=1e-2)
+    
+    

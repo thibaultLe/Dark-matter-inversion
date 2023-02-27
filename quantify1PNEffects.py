@@ -7,6 +7,7 @@ Created on Mon Jul 11 17:33:26 2022
 
 from matplotlib.pylab import plt
 import orbitModule
+import numpy as np
 
 def compare1PNtoN():
     
@@ -26,6 +27,15 @@ def compare1PNtoN():
     
     rx,ry,rz, vx,vy,vz = orbitModule.simulateOrbitsCartesian(False,IC, mis, ris,timegrid)
     rxPN,ryPN,rzPN, vxPN,vyPN,vzPN = orbitModule.simulateOrbitsCartesian(True,IC, mis, ris,timegrid)
+    
+    distances = []
+    for i in range(len(rx)):
+        distances.append(np.sqrt(rx[i]**2 + ry[i]**2 + rz[i]**2))
+    plt.figure()
+    plt.hist(distances,bins=50)
+    plt.xlabel('r [AU]')
+    plt.ylabel('Number of observations')
+    
     
     
     #Plot effects of 1PN:

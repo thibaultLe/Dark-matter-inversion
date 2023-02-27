@@ -65,9 +65,8 @@ def getObservationTimes(nbrOfOrbits=1):
         List of observation times.
 
     """
-    M_0, D_0, T_0 = getBaseUnitConversions()
     
-    #Time of apocentre + 1 full orbit
+    #Time of apocentre + 1 full orbit of 16 years
     obstimes = 2.010356112597776246e+03 + \
         np.linspace(0,16.056740695411154*nbrOfOrbits,300*nbrOfOrbits)
     
@@ -134,7 +133,6 @@ def get_S2_IC():
         [p,e,i,om,w,f].
 
     """
-    _,D_0,_ = getBaseUnitConversions()
     
     # alpha in arcseconds
     alpha_mpe = 0.1249527719 
@@ -312,6 +310,55 @@ def get_Sinusoidal_DM(N,xlim=get_xlim()):
     
     return mis, ris
 
+
+def get_Alpha_DM(N,xlim=get_xlim(),r0=1200):
+    """
+    Returns the Plummer Dark matter model, discretised in mascons
+
+    Parameters
+    ----------
+    N : int
+        Number of mascon shells.
+    xlim : float
+        Maximum distance of shells from 0.
+    rho0 : float
+        Density parameter, optional.
+    r0 : float
+        Scale parameter, optional.
+
+    Returns
+    -------
+    mis : list of floats
+        Dark matter masses.
+    ris : list of floats
+        Dark matter distances.
+
+    """
+    
+    def enclosedMassAlpha(a,r0):
+        return ((a/r0)**11)  *  ( 1 + (a/r0)**10)**(-11/10) / 1000
+    
+    
+    x_mid = np.linspace(0,xlim,2*(N+1)+1) # Midpoints
+    ris = x_mid[1::2]
+    
+    y_mid = np.append(0,enclosedMassAlpha(ris,r0))
+    
+    mis = [t - s for s, t in zip(y_mid, y_mid[1:])]
+    
+    #Convert to a 'middle riemann sum'
+    mis = mis[1:]
+    newris = []
+    for i in range(len(ris)-1):
+        newris.append((ris[i]+ris[i+1])/2)
+    
+    # newris = ris
+    
+    #Divides [0,xlim] in N+1 parts and takes the borders
+    #   e.g. [0,3000] -> ris = [750,1500,2250]
+    
+    return mis, newris
+
 def get_Plummer_DM(N,xlim=get_xlim(),rho0=1.69*10**(-10),r0=2474.01):
     """
     Returns the Plummer Dark matter model, discretised in mascons
@@ -468,6 +515,30 @@ def arcseconds_to_AU(arcsec):
     
     return 2 * R * np.tan(arcsec/(2*206264.8)) / D_0  
 
+def get_k_SteepnessFactor(N):
+    """
+    Returns the parameter k which defines the steepness of the mass shells density
+    It is defined as 1 divided by the distance between 2 neighboaring shells,
+    multiplied by a constant factor (i.e. 6).
+
+    Parameters
+    ----------
+    N : int
+        Number of mascon shells.
+
+    Returns
+    -------
+    k : float
+        Mass shell steepness factor.
+
+    """
+    mis, ris = get_Plummer_DM(N)
+    #Assumes N >= 2
+    delta_r = ris[-1] - ris[-2]
+    factor = 2
+    k = factor/delta_r
+    
+    return k
 
 
 def convertToCartesian(p,e,i,om,w,f):
@@ -591,7 +662,7 @@ def variationalEqsInitialConditions(N):
     return ic_var_phi + ic_var_psi
 
 
-def buildTaylorIntegrator(PNCORR,N,include_variational_eqs=True,compact_mode = False,LOAD_PICKLE=False,SAVE_PICKLE=False,verbose=True):
+def buildTaylorIntegrator(PNCORR,N,include_variational_eqs=True,compact_mode = False,LOAD_PICKLE=False,SAVE_PICKLE=False,verbose=False):
     """
     Returns the heyoka taylor integrator with the given parameters
     
@@ -648,8 +719,8 @@ def buildTaylorIntegrator(PNCORR,N,include_variational_eqs=True,compact_mode = F
         m2 = 0
         #Speed of light (in m/s, then converted) ~= 4.85 AU / 40 minutes
         c = 299792458 * T_0 / D_0
-        #Constant that dictates steepness of sigmoid
-        k = 0.01
+        #Constant that dictates steepness of sigmoid (~0.01-0.05)
+        k = get_k_SteepnessFactor(N)
         
         #Initial conditions:
         IC = get_S2_IC()
@@ -1405,12 +1476,12 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     # step size 1e-5 for Adam, 1e-10 for Grad descent
     alpha = 1e-5
     
-    #batch 1, 1e-6, 4000, Adam, works great
-    #all obs, 1e-5, 3000, Adam, gets very close to 0, but 500 iters gets close enough
-    iterations = 2700
-    #TODO: Decide on stop criterion
     
-    #No noise -> 5k iters, take lowest loss
+    #TODO: Set max amount of iterations here:
+        #Noiseless:         50K until convergence
+        #Noisy:             2K-10K is usually enough
+    iterations = 3000
+    
     
     #TODO: add a 'verbose'/'plotting' parameter
     
@@ -1524,8 +1595,8 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     print('Total time:', round((time.time()-start),2),'seconds')
     
     # print("")
-    print('First guess for IC:',ICiterations[0])
-    print('Reconstructed IC:  ',np.array(ic_guess))
+    # print('First guess for IC:',ICiterations[0])
+    # print('Reconstructed IC:  ',np.array(ic_guess))
     # print("")
     # print('First guess for DM:',DMiterations[0])
     # print('Reconstructed DM:  ',list(dm_guess))
@@ -1553,18 +1624,18 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     
     
     
-    print('Loss before training =', losses[0])
+    # print('Loss before training =', losses[0])
     # print('Loss after training =', losses[-1])
     print('Loss after training =', min(losses))
     
     
-    xdifs = 1e6*(AU_to_arcseconds(finalsim[:,0])-AU_to_arcseconds(observationlist[:,0]))
-    ydifs = 1e6*(AU_to_arcseconds(finalsim[:,1])-AU_to_arcseconds(observationlist[:,1]))
-    vzdifs = finalsim[:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000)
+    # xdifs = 1e6*(AU_to_arcseconds(finalsim[:,0])-AU_to_arcseconds(observationlist[:,0]))
+    # ydifs = 1e6*(AU_to_arcseconds(finalsim[:,1])-AU_to_arcseconds(observationlist[:,1]))
+    # vzdifs = finalsim[:,-1]* D_0 / (T_0 * 1000)-observationlist[:,-1]* D_0 / (T_0 * 1000)
     
-    print('Max X difference:',max(abs(xdifs)),'[µas]')
-    print('Max Y difference:',max(abs(ydifs)),'[µas]')
-    print('Max VZ difference:',max(abs(vzdifs)),'[km/s]')
+    # print('Max X difference:',max(abs(xdifs)),'[µas]')
+    # print('Max Y difference:',max(abs(ydifs)),'[µas]')
+    # print('Max VZ difference:',max(abs(vzdifs)),'[km/s]')
             
         
         
@@ -1717,7 +1788,7 @@ def reconstructDistributionFromTrueMasses(PNCORRECTION,mis,ris, obstimes, ic_gue
     else:
         ADD_NOISE = True
         
-    np.set_printoptions(precision=5)
+    # np.set_printoptions(precision=5)
     
     IC = get_S2_IC()
     
@@ -2164,7 +2235,7 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
     # cmin = min(losses)
     # cmax = firstQuartile
     # sigma = 0.43097
-    sigma = 0.01*trueloss
+    sigma = 0.01*trueloss /2
     cmax = trueloss + 5*sigma
     
     
@@ -2245,12 +2316,13 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
 
         rgba = cmap(crange[i])
         # plt.plot(ris,mins,color=rgba,label='loss={}({}sig)'.format(round(losslim,2),i+1))
-        plt.plot(ris,100*np.array(mins),color=rgba,label='loss<={}({}%)'.format(round(losslim,2),i))
+        plt.plot(ris,100*np.array(mins),color=rgba,label='Loss<={} ({}%)'
+                 .format(round(losslim,1),round(i/2,1)))
         # plt.plot(ris,mins,color=rgba,label='loss={}'.format(round(losslim,2)))
         plt.plot(ris,100*np.array(maxs),color=rgba)
         
-        print(mins)
-        print(maxs)
+        # print(mins)
+        # print(maxs)
         
         minList.append(mins)
         maxList.append(maxs)
@@ -2267,7 +2339,7 @@ def lossLandscape(N=5,noisefactor=1e-1,nbrOfDistributions=10000):
     # plt.axvline(rp,linestyle='--',label='rp and ra',color='black')
     plt.axvline(rp,linestyle='--',color='black')
     plt.axvline(ra,linestyle='--',color='black')
-    plt.scatter(ris,100*np.array(mis),label='True loss={}'.format(round(trueloss,2)))
+    plt.scatter(ris,100*np.array(mis),label='True loss={}'.format(round(trueloss,1)))
     plt.legend()
     
     

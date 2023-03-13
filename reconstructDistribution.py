@@ -163,7 +163,7 @@ def plotInitReconTrueMasses(dm_guess,reconmis,mis,stddevs=[]):
     
 def plotICRobustness(biglist,names,noisefactor=1):
     colors = ["tab:blue","tab:orange","tab:green","tab:red","tab:purple"]
-    alpha = 0.2
+    alpha = 0.15
     
     rp = 119.52867
     ra = 1948.96214
@@ -244,8 +244,14 @@ def plotICRobustness(biglist,names,noisefactor=1):
             ax12.plot(rDM,means,"--",label=names[i]+" mean reconstruction",color=colors[i])
             ax12.fill_between(rDM,means-stddevs,means+stddevs,alpha=alpha, facecolor=colors[i],
                             label=names[i]+' standard deviation')
+            # ax12.plot(rDM,means-stddevs,linestyle=(0, (1, 10)),color=colors[i],lw=2.5)
+            # ax12.plot(rDM,means+stddevs,linestyle=(0, (1, 10)),color=colors[i],lw=2.5)
         else:
             ax12.plot(rDM,sumRisTrue,"--",label=names[i]+" reconstruction",color=colors[i])
+            
+            # ax12.plot(rDM,sumRisTrue,":",label=names[i]+" reconstruction",color=colors[i],linewidth=4)
+            # ax12.plot(rDM,sumRisTrue,"--",label=names[i]+" reconstruction",color=colors[i],linewidth=3)
+            # ax12.plot(rDM,sumRisTrue,":",label=names[i]+" reconstruction",color='black',linewidth=3)
             
         
         
@@ -289,11 +295,11 @@ def plotICRobustness(biglist,names,noisefactor=1):
     plt.rcParams['axes.autolimit_mode'] = 'round_numbers'
     
     df.iloc[0:10].plot.scatter(x='p',
-                        y='e',color=colors[0],ax=ax1,label='Plummer')
+                        y='e',color=colors[0],ax=ax1,label=names[0])
     df.iloc[10:20].plot.scatter(x='p',
-                        y='e',color=colors[1],ax=ax1,label='Bahcall-Wolf')
+                        y='e',color=colors[1],ax=ax1,label=names[1])
     df.iloc[20:30].plot.scatter(x='p',
-                        y='e',color=colors[2],ax=ax1,label='Alpha')
+                        y='e',color=colors[2],ax=ax1,label=names[2])
     # ax1.scatter(IC[0],IC[1],label="True")
     ax1.errorbar(IC[0],IC[1], xerr=noisefactor*0.131, yerr=noisefactor*0.00006, fmt='none')
     ax1.legend()
@@ -303,11 +309,11 @@ def plotICRobustness(biglist,names,noisefactor=1):
     # ax1 = df.plot.scatter(x='i',
     #                     y='Om')
     df.iloc[0:10].plot.scatter(x='i',
-                        y='Om',color=colors[0],ax=ax2,label='Plummer')
+                        y='Om',color=colors[0],ax=ax2,label=names[0])
     df.iloc[10:20].plot.scatter(x='i',
-                        y='Om',color=colors[1],ax=ax2,label='Bahcall-Wolf')
+                        y='Om',color=colors[1],ax=ax2,label=names[1])
     df.iloc[20:30].plot.scatter(x='i',
-                        y='Om',color=colors[2],ax=ax2,label='Alpha')
+                        y='Om',color=colors[2],ax=ax2,label=names[2])
     # ax1.scatter(IC[2],IC[3],label="True")
     ax2.errorbar(IC[2],IC[3], xerr=noisefactor*0.03, yerr=noisefactor*0.03, fmt='none')
     ax2.legend()
@@ -317,11 +323,11 @@ def plotICRobustness(biglist,names,noisefactor=1):
     # ax1 = df.plot.scatter(x='w',
     #                     y='f')
     df.iloc[0:10].plot.scatter(x='w',
-                        y='f',color=colors[0],ax=ax3,label='Plummer')
+                        y='f',color=colors[0],ax=ax3,label=names[0])
     df.iloc[10:20].plot.scatter(x='w',
-                        y='f',color=colors[1],ax=ax3,label='Bahcall-Wolf')
+                        y='f',color=colors[1],ax=ax3,label=names[1])
     df.iloc[20:30].plot.scatter(x='w',
-                        y='f',color=colors[2],ax=ax3,label='Alpha')
+                        y='f',color=colors[2],ax=ax3,label=names[2])
     # ax1.scatter(IC[4],IC[5],label="True")
     ax3.errorbar(IC[4],IC[5], xerr=noisefactor*0.03, yerr=0, fmt='none')
     ax3.legend()
@@ -501,10 +507,10 @@ def checkRobustnessToNoise(noisefactor,amountOfRecons,name):
     
     
 def checkRobustnessToInitialConditions(noisefactor,amountOfRecons):
-    names = ['Plummer','BahcallWolf','Alpha']
+    names = ['Plummer','BahcallWolf','Zhao']
     
     #Offset is changed every experiment in order to not have the same seeds
-    seedoffset = 300000
+    seedoffset = 200000
     
     #100000 for 1e-1 noise
     #200000 for 1 noise, 10x orbits
@@ -526,16 +532,18 @@ def checkRobustnessToInitialConditions(noisefactor,amountOfRecons):
         #Reconstructs with different initial conditions
         for i in range(amountOfRecons):
             #Need to set the seed, otherwise following iterations have the same seed
-            np.random.seed(i+20*len(biglist)+seedoffset)
-            dm_guess = N*[0]
+            seed = i+20*len(biglist)+seedoffset
+            np.random.seed(seed)
+            print(seed)
             
+            dm_guess = N*[0]
             ic_noisy = IC.copy()
-            ic_noisy[0] = ic_noisy[0] + np.random.normal(0,0.1*noisefactor*0.131) #p
-            ic_noisy[1] = ic_noisy[1] + np.random.normal(0,0.1*noisefactor*0.00006) #e
-            ic_noisy[2] = ic_noisy[2] + np.random.normal(0,0.1*noisefactor*0.03 / 180 * np.pi) #i
-            ic_noisy[3] = ic_noisy[3] + np.random.normal(0,0.1*noisefactor*0.03 / 180 * np.pi) #om
-            ic_noisy[4] = ic_noisy[4] + np.random.normal(0,0.1*noisefactor*0.03 / 180 * np.pi) #w
-            ic_noisy[5] = ic_noisy[5] + np.random.normal(0,0.1*noisefactor*0) #f
+            ic_noisy[0] = ic_noisy[0] + np.random.normal(0,noisefactor*0.131) #p
+            ic_noisy[1] = ic_noisy[1] + np.random.normal(0,noisefactor*0.00006) #e
+            ic_noisy[2] = ic_noisy[2] + np.random.normal(0,noisefactor*0.03 / 180 * np.pi) #i
+            ic_noisy[3] = ic_noisy[3] + np.random.normal(0,noisefactor*0.03 / 180 * np.pi) #om
+            ic_noisy[4] = ic_noisy[4] + np.random.normal(0,noisefactor*0.03 / 180 * np.pi) #w
+            ic_noisy[5] = ic_noisy[5] + np.random.normal(0,noisefactor*0) #f
             
             
             reconic, reconmis = orbitModule.reconstructDistributionFromTrueMasses(True,mis,ris,obstimes, \
@@ -617,7 +625,7 @@ if __name__ == "__main__":
     # checkRobustnessToNoise(noisefactor=1e-1,amountOfRecons=3,name='Plummer')
     
     #For different initial conditions, check the robustness of the reconstruction:
-    checkRobustnessToInitialConditions(noisefactor=1,amountOfRecons=10)
+    checkRobustnessToInitialConditions(noisefactor=1,amountOfRecons=5)
     
     #Compare equi-temporal spacing vs equi-spatial spacing
     # compareDifferentTimeGrids(noisefactor = 1e-1,name='Plummer')
@@ -629,6 +637,6 @@ if __name__ == "__main__":
     # orbitModule.lossLandscape(N=5,noisefactor=1,nbrOfDistributions=250000)
     
     #Calculate the variance of the true loss wrt different noise samples
-    # checkLossVariance(noisefactor=1e-2)
+    # checkLossVariance(noisefactor=1)
     
     

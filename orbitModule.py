@@ -1480,7 +1480,7 @@ def reconstructDistribution(obslist, ic_guess, dm_guess, CARTESIANOBS = True,OBS
     #TODO: Set max amount of iterations here:
         #Noiseless:         50K until convergence
         #Noisy:             2K-10K is usually enough
-    iterations = 3000
+    iterations = 10000
     
     
     #TODO: add a 'verbose'/'plotting' parameter
@@ -1800,6 +1800,13 @@ def reconstructDistributionFromTrueMasses(PNCORRECTION,mis,ris, obstimes, ic_gue
     
     observationlist = addNoiseToObservations(observationlist,ADD_NOISE,seed,noisefactor)
     
+    #True loss:
+    N = len(mis)
+    ta = buildTaylorIntegrator(True, N,LOAD_PICKLE=True)
+    #Set DM distances
+    ta.pars[N:] = get_DM_distances(N)
+    print('True loss:',getGoodnessOfFit(ta,IC,mis,observationlist,noisefactor))
+    #TODO
     
     #observationlist =[[t1 x1 y1 ... vz1], [t2 x2 y2 ... vz2],...[]]
     return reconstructDistribution(observationlist, ic_guess, dm_guess,CARTESIANOBS,OBS3,noisefactor)

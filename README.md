@@ -9,7 +9,10 @@ The datasets used can be found under /Datasets.
 
 # Installation:
 Make a new conda environment.
+
 Install Heyoka from https://bluescarni.github.io/heyoka.py/install.html
+
 Run 'conda install pygmo matplotlib pandas'
+
 Run 'python buildDataset.py' to build the taylor integrators
 

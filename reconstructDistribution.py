@@ -244,8 +244,8 @@ def plotICRobustness(biglist,names,noisefactor=1):
             ax12.plot(rDM,means,"--",label=names[i]+" mean reconstruction",color=colors[i])
             ax12.fill_between(rDM,means-stddevs,means+stddevs,alpha=alpha, facecolor=colors[i],
                             label=names[i]+' standard deviation')
-            # ax12.plot(rDM,means-stddevs,linestyle=(0, (1, 10)),color=colors[i],lw=2.5)
-            # ax12.plot(rDM,means+stddevs,linestyle=(0, (1, 10)),color=colors[i],lw=2.5)
+            ax12.plot(rDM,means-stddevs,linestyle=(0, (1, 10)),color=colors[i],lw=2.5)
+            ax12.plot(rDM,means+stddevs,linestyle=(0, (1, 10)),color=colors[i],lw=2.5)
         else:
             ax12.plot(rDM,sumRisTrue,"--",label=names[i]+" reconstruction",color=colors[i])
             
@@ -507,10 +507,10 @@ def checkRobustnessToNoise(noisefactor,amountOfRecons,name):
     
     
 def checkRobustnessToInitialConditions(noisefactor,amountOfRecons):
-    names = ['Plummer','BahcallWolf','Zhao']
+    names = ['Plummer','BahcallWolf','Alpha']
     
     #Offset is changed every experiment in order to not have the same seeds
-    seedoffset = 200000
+    seedoffset = 200005
     
     #100000 for 1e-1 noise
     #200000 for 1 noise, 10x orbits

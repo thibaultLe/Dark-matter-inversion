@@ -19,3 +19,7 @@ You should use the provided scripts to interface with this module (e.g. reconstr
 Most scripts are structured as follows: functions are defined at the top, which are called at the bottom. Comment/uncomment the desired functions and run the files to run the experiments.
 
 The /Datasets folder contains files with observational data, which is used by some of the scripts.
+
+
+# Citation:
+The paper is being finalized, stay tuned!

@@ -22,7 +22,7 @@ The /Datasets folder contains files with observational data, which is used by so
 
 
 # Citation:
-@misc{lechien2023dark,
+      @Article{lechien2023dark,
       title={Dark Matter reconstruction from stellar orbits in the Galactic Centre}, 
       author={Thibault Lechien and Gernot Heißel and Jai Grover and Dario Izzo},
       year={2023},

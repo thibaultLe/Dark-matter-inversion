@@ -28,5 +28,4 @@ The /Datasets folder contains files with observational data, which is used by so
       year={2023},
       eprint={2308.09170},
       archivePrefix={arXiv},
-      primaryClass={astro-ph.GA}
-}
+      primaryClass={astro-ph.GA}}

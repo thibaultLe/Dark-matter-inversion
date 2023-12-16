@@ -2842,10 +2842,12 @@ import seaborn as sns
 plt.figure()
 sns.boxplot(data=[diffsNormalguess, diffsTrueguess]).set(xlabel="Left: IG3 starting from true DM distribution. Right: IG3.",title='{Reconstructed loss} - {True loss} for Plummer and BW')
 plt.ylim(-180,2100)
+plt.show()
 
 plt.figure()
 sns.boxplot(data=[zhaoDiffsNormal, zhaoDiffsTrue]).set(xlabel="Left: IG3 starting from true DM distribution. Right: IG3.",title='{Reconstructed loss} - {True loss} for Zhao')
 plt.ylim(-180,2100)
+plt.show()
 
 import pandas as pd
 df = pd.DataFrame(diffsNormalguess)

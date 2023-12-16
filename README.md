@@ -1,5 +1,5 @@
 # Dark-matter-inversion
-Welcome to the repo for the dark matter inversion project of ESA's Advanced Concepts Team.
+Welcome to the repo for the dark matter inversion project of [ESA's Advanced Concepts Team](https://www.esa.int/gsp/ACT/).
 
 
 
@@ -22,4 +22,10 @@ The /Datasets folder contains files with observational data, which is used by so
 
 
 # Citation:
-The paper is being finalized, stay tuned!
+      @Article{lechien2023dark,
+      title={Dark Matter reconstruction from stellar orbits in the Galactic Centre}, 
+      author={Thibault Lechien and Gernot Heißel and Jai Grover and Dario Izzo},
+      year={2023},
+      eprint={2308.09170},
+      archivePrefix={arXiv},
+      primaryClass={astro-ph.GA}}

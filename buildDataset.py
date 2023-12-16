@@ -38,7 +38,7 @@ def setupTaylorIntegrators(Ns):
 if __name__ == "__main__":
     #Dark matter:
     #Amount of mascons:
-    Ns = [5,10]
+    Ns = [5]
     
     #Build the datasets
     # buildDatasets(Ns)

@@ -7,7 +7,7 @@ Created on Fri Jul 15 15:11:01 2022
 
 
 import heyoka as hy
-import pygmo as pg
+#import pygmo as pg
 import numpy as np
 import time
 import pickle
@@ -2020,41 +2020,41 @@ def getBestBahcallFit(filename,N):
             return (lb, ub)
         
     
-    pg.set_global_rng_seed(0)
-    
-    udp = ReconstructBahcall(filename,N)
-    prob = pg.problem(udp)
-    
-    #If you get bad fits, feel free to increase the popside or amount of iterations
-    popsize = 200
-    pop = pg.population(prob,popsize)
-    
-    uda = pg.cmaes(1,force_bounds=True,memory=True)
-    
-    algo = pg.algorithm(uda)
-    
-    for i in range(1000):
-        pop = algo.evolve(pop)
-        
-        # print(pop.champion_x,pop.champion_f)
-    
-    print('Best Bahcall fit')
-    print(list(pop.champion_x),pop.champion_f)
-    
-    
-    # plt.figure()
-    reconmis, ris = get_BahcallWolf_DM(5,rho0=pop.champion_x[0])
-    # lb = udp.get_bounds()[0][0]
-    # ub = udp.get_bounds()[1][0]
-    # lbmis, ris = get_BahcallWolf_DM(5,2100,lb)
-    # ubmis, ris = get_BahcallWolf_DM(5,2100,ub)
-    # # plt.scatter(ris,dm,label='True')
-    # plt.scatter(ris,reconmis,label='Best fit')
-    # plt.plot(ris,lbmis,label='Lower bound')
-    # plt.plot(ris,ubmis,label='Upper bound')
-    # plt.legend()
-    
-    return reconmis
+    # pg.set_global_rng_seed(0)
+    #
+    # udp = ReconstructBahcall(filename,N)
+    # prob = pg.problem(udp)
+    #
+    # #If you get bad fits, feel free to increase the popside or amount of iterations
+    # popsize = 200
+    # pop = pg.population(prob,popsize)
+    #
+    # uda = pg.cmaes(1,force_bounds=True,memory=True)
+    #
+    # algo = pg.algorithm(uda)
+    #
+    # for i in range(1000):
+    #     pop = algo.evolve(pop)
+    #
+    #     # print(pop.champion_x,pop.champion_f)
+    #
+    # print('Best Bahcall fit')
+    # print(list(pop.champion_x),pop.champion_f)
+    #
+    #
+    # # plt.figure()
+    # reconmis, ris = get_BahcallWolf_DM(5,rho0=pop.champion_x[0])
+    # # lb = udp.get_bounds()[0][0]
+    # # ub = udp.get_bounds()[1][0]
+    # # lbmis, ris = get_BahcallWolf_DM(5,2100,lb)
+    # # ubmis, ris = get_BahcallWolf_DM(5,2100,ub)
+    # # # plt.scatter(ris,dm,label='True')
+    # # plt.scatter(ris,reconmis,label='Best fit')
+    # # plt.plot(ris,lbmis,label='Lower bound')
+    # # plt.plot(ris,ubmis,label='Upper bound')
+    # # plt.legend()
+    #
+    # return reconmis
 
 
 def getBestPlummerFit(filename,N): 
@@ -2087,40 +2087,40 @@ def getBestPlummerFit(filename,N):
             return (lb, ub)
         
     
-    pg.set_global_rng_seed(0)
-    
-    udp = ReconstructBahcall(filename,N)
-    prob = pg.problem(udp)
-    
-    #If you get bad fits, feel free to increase the popside or amount of iterations
-    popsize = 30
-    pop = pg.population(prob,popsize)
-    
-    uda = pg.cmaes(1,force_bounds=True,memory=True)
-    
-    algo = pg.algorithm(uda)
-    
-    for i in range(200):
-        pop = algo.evolve(pop)
-        # print(pop.champion_x,pop.champion_f)
-    
-    print('Best Plummer fit')
-    print(list(pop.champion_x),pop.champion_f)
-    
-    
-    # plt.figure()
-    reconmis, ris = get_Plummer_DM(N,rho0=pop.champion_x[0],r0=pop.champion_x[1])
-    # lb = udp.get_bounds()[0][0]
-    # ub = udp.get_bounds()[1][0]
-    # lbmis, ris = get_BahcallWolf_DM(5,2100,lb)
-    # ubmis, ris = get_BahcallWolf_DM(5,2100,ub)
-    # # plt.scatter(ris,dm,label='True')
-    # plt.scatter(ris,reconmis,label='Best fit')
-    # plt.plot(ris,lbmis,label='Lower bound')
-    # plt.plot(ris,ubmis,label='Upper bound')
-    # plt.legend()
-    
-    return reconmis
+    # pg.set_global_rng_seed(0)
+    #
+    # udp = ReconstructBahcall(filename,N)
+    # prob = pg.problem(udp)
+    #
+    # #If you get bad fits, feel free to increase the popside or amount of iterations
+    # popsize = 30
+    # pop = pg.population(prob,popsize)
+    #
+    # uda = pg.cmaes(1,force_bounds=True,memory=True)
+    #
+    # algo = pg.algorithm(uda)
+    #
+    # for i in range(200):
+    #     pop = algo.evolve(pop)
+    #     # print(pop.champion_x,pop.champion_f)
+    #
+    # print('Best Plummer fit')
+    # print(list(pop.champion_x),pop.champion_f)
+    #
+    #
+    # # plt.figure()
+    # reconmis, ris = get_Plummer_DM(N,rho0=pop.champion_x[0],r0=pop.champion_x[1])
+    # # lb = udp.get_bounds()[0][0]
+    # # ub = udp.get_bounds()[1][0]
+    # # lbmis, ris = get_BahcallWolf_DM(5,2100,lb)
+    # # ubmis, ris = get_BahcallWolf_DM(5,2100,ub)
+    # # # plt.scatter(ris,dm,label='True')
+    # # plt.scatter(ris,reconmis,label='Best fit')
+    # # plt.plot(ris,lbmis,label='Lower bound')
+    # # plt.plot(ris,ubmis,label='Upper bound')
+    # # plt.legend()
+    #
+    # return reconmis
     
 
 
